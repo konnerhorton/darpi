@@ -217,3 +217,52 @@ def get_aggregate_data(
         risks[risk]["samples"] = data
     samples = sum_samples([risk["samples"] for risk in risks.values()])
     return samples
+
+
+def get_p_value(data: np.ndarray, p_value: float) -> float:
+    """
+    Retrieve the cost associated with a specific non-exceedance probability (p-value).
+
+    This function calculates the empirical percent-point function (PPF) from the provided data
+    and returns the cost value corresponding to a specified non-exceedance probability (p-value).
+
+    Parameters
+    ----------
+    data : np.ndarray
+        An array of data points from which to compute the empirical PPF.
+    p_value : float
+        The non-exceedance probability (p-value) for which to retrieve the corresponding cost value.
+        This should be a value between 0 and 1.
+
+    Returns
+    -------
+    float
+        The cost value corresponding to the specified p-value, rounded to two decimal places.
+
+    Raises
+    ------
+    IndexError
+        If the specified p-value is not found in the calculated PPF data.
+
+    Notes
+    -----
+    - The p-value represents the probability that a randomly selected value from the distribution
+      will be less than or equal to the corresponding cost.
+    - This function is useful for identifying the threshold cost for a given probability in risk analysis.
+
+    Example
+    -------
+    Example usage of `get_p_value`:
+
+    >>> data = np.array([1000, 2000, 3000, 4000, 5000])
+    >>> p_value = 0.5
+    >>> cost_at_p = get_p_value(data, p_value)
+    >>> print(cost_at_p)
+
+    This might output `3000.0`, representing the cost value at the 50th percentile (median) of the data.
+
+    """
+    ppf_data = get_empirical_ppf(data)
+    cost = ppf_data.cost
+    p = ppf_data.p
+    return cost[np.where(p == p_value)][0].round(2)
