@@ -16,15 +16,21 @@ plugins:
           show_bases: true
 - mkdocs-jupyter:
     execute: true
-nav:
-  - Home: index.md
-  - Examples: 
-    - Single Risk: single-risk.md
-    - Multiple Risks: multiple-risks.md
-  - Reference: 
-    - Probability: probability.md
-    - Plots: plots.md
-    - Tables: tables.md
+# nav:
+#   - Home: index.md
+#   - Examples: 
+#     - Single Risk: single-risk.md
+#     - Multiple Risks: multiple-risks.md
+#     - Heat Maps: heat-maps.md
+#   - Reference:
+#     - Quantitative: 
+#       - Probability: quantitative_probability.md
+#       - Plots: quantitative_plots.md
+#       - Tables: quantitative_tables.md
+#     - Qualitative: 
+#       - Probability: qualitative_probability.md
+#       - Plots: qualitative_plots.md
+#       - Tables: qualitative_tables.md
 markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
