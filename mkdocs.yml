@@ -1,6 +1,16 @@
 site_name: darpi
 theme:
   name: material
+  icon:
+    repo: fontawesome/brands/github
+    view: material/eye
+    edit: material/pencil
+  features:
+    - content.action.view
+    - content.action.edit
+repo_url: https://github.com/konnerhorton/darpi
+repo_name: konnerhorton/darpi
+edit_uri: main
 plugins:
 - search
 - mkdocstrings:
@@ -16,21 +26,6 @@ plugins:
           show_bases: true
 - mkdocs-jupyter:
     execute: true
-# nav:
-#   - Home: index.md
-#   - Examples: 
-#     - Single Risk: single-risk.md
-#     - Multiple Risks: multiple-risks.md
-#     - Heat Maps: heat-maps.md
-#   - Reference:
-#     - Quantitative: 
-#       - Probability: quantitative_probability.md
-#       - Plots: quantitative_plots.md
-#       - Tables: quantitative_tables.md
-#     - Qualitative: 
-#       - Probability: qualitative_probability.md
-#       - Plots: qualitative_plots.md
-#       - Tables: qualitative_tables.md
 markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true

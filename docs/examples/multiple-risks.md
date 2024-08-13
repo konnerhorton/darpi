@@ -10,15 +10,8 @@ import os
 
 import pandas as pd
 
-# Add the root_dir to the path so `darpi` can be imported
-root_dir = os.path.abspath(os.path.join(os.getcwd(), ".."))
-
-if root_dir not in sys.path:
-    sys.path.append(root_dir)
-from darpi.plots import plot_histogram_and_cdf, plot_ppf_curve
-
-
-from darpi.probability import (
+from darpi.quantitative.plots import plot_histogram_and_cdf, plot_ppf_curve
+from darpi.quantitative.probability import (
     get_histogram_data,
     get_samples,
     get_triangular_distribution,
@@ -26,7 +19,7 @@ from darpi.probability import (
     get_empirical_ppf,
     sum_samples,
 )
-from darpi.tables import get_non_exceedance_table
+from darpi.qualitative.plots import plot_empty_heat_map, add_scatter_to_heat_map
 ```
 
 ## Generate probability of non-exceedance charts for multiple risks
