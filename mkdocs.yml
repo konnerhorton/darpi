@@ -10,7 +10,7 @@ theme:
     - content.action.edit
 repo_url: https://github.com/konnerhorton/darpi
 repo_name: konnerhorton/darpi
-edit_uri: main
+edit_uri: tree/main/docs
 plugins:
 - search
 - mkdocstrings:
