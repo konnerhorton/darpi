@@ -72,7 +72,9 @@ def plot_empty_heat_map(low: int = 1, high: int = 5) -> go.Figure:
     return fig
 
 
-def add_scatter_to_heat_map(risks: list[dict[str, float]], title: str) -> go.Figure:
+def add_scatter_to_heat_map(
+    risk_score_counts: list[dict[str, float]], title: str
+) -> go.Figure:
     """
     Adds a scatter plot to the heat map, representing risks with their impact and probability.
 

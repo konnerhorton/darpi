@@ -97,8 +97,8 @@ df
 ### Send to Records for Plotting
 
 ```python
-risks = df.to_dict("records")
-risks
+risk_score_counts = df.to_dict("records")
+risk_score_counts
 
 [{'probability': 1, 'impact': 2, 'counts': 1},
  {'probability': 1, 'impact': 3, 'counts': 2},
@@ -119,7 +119,7 @@ risks
 ### Plot the Heatmap
 
 ```python
-fig = add_scatter_to_heat_map(risks, "Some risks on a heatmap")
+fig = add_scatter_to_heat_map(risk_score_counts, "Some risks on a heatmap")
 fig.write_image("heat-map.png")
 fig.show()
 ```
