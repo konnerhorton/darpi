@@ -1,0 +1,20 @@
+[project]
+name = "darpi-backend"
+version = "0.1.0"
+description = "DARPI risk register backend"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "sqlalchemy[asyncio]>=2.0",
+    "aiosqlite>=0.21",
+    "alembic>=1.14",
+    "numpy>=2.0",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "httpx>=0.28",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.25",
+]
