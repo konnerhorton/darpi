@@ -77,6 +77,35 @@ export default function App() {
     }
   }, [register]);
 
+  const handleTriangularChange = useCallback(async (riskId: string, min: number, expected: number, max: number) => {
+    // Optimistic update
+    setRisks(prev => prev.map(r =>
+      r.id === riskId ? { ...r, cost_min: min, cost_expected: expected, cost_max: max, cost_single: null } : r
+    ));
+    try {
+      await api.updateRisk(riskId, { cost_min: min, cost_expected: expected, cost_max: max, cost_single: null } as Partial<Risk>);
+    } catch {
+      if (register) {
+        const fresh = await api.listRisks(register.id);
+        setRisks(fresh);
+      }
+    }
+  }, [register]);
+
+  const handleClearTriangular = useCallback(async (riskId: string, singleValue: number) => {
+    setRisks(prev => prev.map(r =>
+      r.id === riskId ? { ...r, cost_single: singleValue, cost_min: null, cost_expected: null, cost_max: null } : r
+    ));
+    try {
+      await api.updateRisk(riskId, { cost_single: singleValue, cost_min: null, cost_expected: null, cost_max: null } as Partial<Risk>);
+    } catch {
+      if (register) {
+        const fresh = await api.listRisks(register.id);
+        setRisks(fresh);
+      }
+    }
+  }, [register]);
+
   const handleDeleteRow = useCallback(async (riskId: string) => {
     const prev = risks;
     setRisks(r => r.filter(risk => risk.id !== riskId));
@@ -108,6 +137,8 @@ export default function App() {
           <RegisterTable
             risks={risks}
             onCellChange={handleCellChange}
+            onTriangularChange={handleTriangularChange}
+            onClearTriangular={handleClearTriangular}
             onAddRow={handleAddRow}
             onDeleteRow={handleDeleteRow}
           />

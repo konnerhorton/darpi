@@ -1,18 +1,22 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
-import type { ColDef, CellValueChangedEvent, GridReadyEvent } from 'ag-grid-community';
+import { themeAlpine } from 'ag-grid-community';
+import type { ColDef, CellValueChangedEvent, GridReadyEvent, ICellRendererParams } from 'ag-grid-community';
 import type { Risk } from '../types';
+import TriangularPopover from './TriangularPopover';
 
 interface RegisterTableProps {
   risks: Risk[];
   onCellChange: (riskId: string, field: string, value: unknown) => void;
+  onTriangularChange: (riskId: string, min: number, expected: number, max: number) => void;
+  onClearTriangular: (riskId: string, singleValue: number) => void;
   onAddRow: () => void;
   onDeleteRow: (riskId: string) => void;
 }
 
-const currencyFormatter = (params: { value: number | null }) => {
-  if (params.value == null) return '';
-  return '$' + params.value.toLocaleString('en-US', { maximumFractionDigits: 0 });
+const formatCurrency = (value: number | null) => {
+  if (value == null) return '';
+  return '$' + value.toLocaleString('en-US', { maximumFractionDigits: 0 });
 };
 
 const percentFormatter = (params: { value: number | null }) => {
@@ -20,8 +24,61 @@ const percentFormatter = (params: { value: number | null }) => {
   return params.value + '%';
 };
 
-export default function RegisterTable({ risks, onCellChange, onAddRow, onDeleteRow }: RegisterTableProps) {
+interface PopoverState {
+  riskId: string;
+  costMin: number | null;
+  costExpected: number | null;
+  costMax: number | null;
+  anchorRect: DOMRect;
+}
+
+export default function RegisterTable({
+  risks, onCellChange, onTriangularChange, onClearTriangular, onAddRow, onDeleteRow,
+}: RegisterTableProps) {
   const gridRef = useRef<AgGridReact>(null);
+  const [popover, setPopover] = useState<PopoverState | null>(null);
+
+  const CostCellRenderer = useCallback((params: ICellRendererParams) => {
+    const risk = params.data as Risk;
+    if (!risk) return null;
+
+    const isTriangular = risk.cost_min != null;
+    const displayValue = isTriangular ? risk.cost_expected : risk.cost_single;
+
+    const handleTriangularClick = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      const cell = (e.target as HTMLElement).closest('.ag-cell');
+      if (!cell) return;
+      const rect = cell.getBoundingClientRect();
+      setPopover({
+        riskId: risk.id,
+        costMin: risk.cost_min,
+        costExpected: risk.cost_expected,
+        costMax: risk.cost_max,
+        anchorRect: rect,
+      });
+    };
+
+    return (
+      <span className="flex items-center justify-end w-full gap-1">
+        <span>{formatCurrency(displayValue)}</span>
+        <button
+          onClick={handleTriangularClick}
+          className={`text-xs leading-none px-0.5 rounded ${
+            isTriangular
+              ? 'text-blue-600 font-bold'
+              : 'text-gray-400 hover:text-gray-600'
+          }`}
+          title={isTriangular
+            ? `Min: ${formatCurrency(risk.cost_min)} / Exp: ${formatCurrency(risk.cost_expected)} / Max: ${formatCurrency(risk.cost_max)}`
+            : 'Set triangular distribution'
+          }
+        >
+          ▲
+        </button>
+      </span>
+    );
+  }, []);
 
   const columnDefs = useMemo<ColDef[]>(() => [
     { field: 'display_id', headerName: 'ID', width: 80, editable: false, sortable: false },
@@ -44,19 +101,14 @@ export default function RegisterTable({ risks, onCellChange, onAddRow, onDeleteR
     },
     {
       headerName: 'Cost',
-      width: 130,
+      width: 150,
       editable: true,
       type: 'numericColumn',
+      cellRenderer: CostCellRenderer,
       valueGetter: (params) => {
         const d = params.data as Risk;
         if (d.cost_min != null) return d.cost_expected;
         return d.cost_single;
-      },
-      valueFormatter: (params) => {
-        const d = params.data as Risk;
-        const formatted = currencyFormatter(params);
-        if (d.cost_min != null) return formatted + ' ▲';
-        return formatted;
       },
       valueSetter: (params) => {
         const raw = String(params.newValue).replace(/[$,]/g, '');
@@ -70,7 +122,7 @@ export default function RegisterTable({ risks, onCellChange, onAddRow, onDeleteR
       },
     },
     { field: 'notes', headerName: 'Notes', width: 150, editable: true },
-  ], []);
+  ], [CostCellRenderer]);
 
   const defaultColDef = useMemo<ColDef>(() => ({
     resizable: true,
@@ -81,7 +133,6 @@ export default function RegisterTable({ risks, onCellChange, onAddRow, onDeleteR
     const risk = event.data as Risk;
     const field = event.colDef.field;
     if (!field) {
-      // Cost column doesn't have a field — send all cost fields
       onCellChange(risk.id, 'cost_single', risk.cost_single);
       return;
     }
@@ -103,14 +154,30 @@ export default function RegisterTable({ risks, onCellChange, onAddRow, onDeleteR
     ];
   }, [onDeleteRow]);
 
+  const handlePopoverSave = useCallback((min: number, expected: number, max: number) => {
+    if (!popover) return;
+    onTriangularChange(popover.riskId, min, expected, max);
+    setPopover(null);
+  }, [popover, onTriangularChange]);
+
+  const handlePopoverClear = useCallback(() => {
+    if (!popover) return;
+    const risk = risks.find(r => r.id === popover.riskId);
+    const singleValue = risk?.cost_expected ?? risk?.cost_single ?? 0;
+    onClearTriangular(popover.riskId, singleValue);
+    setPopover(null);
+  }, [popover, risks, onClearTriangular]);
+
   return (
-    <div className="flex flex-col h-full">
-      <div className="ag-theme-alpine flex-1">
+    <div className="h-full overflow-auto">
+      <div>
         <AgGridReact
           ref={gridRef}
+          theme={themeAlpine}
           rowData={risks}
           columnDefs={columnDefs}
           defaultColDef={defaultColDef}
+          domLayout="autoHeight"
           getRowId={(params) => params.data.id}
           onCellValueChanged={onCellValueChanged}
           onGridReady={onGridReady}
@@ -127,6 +194,18 @@ export default function RegisterTable({ risks, onCellChange, onAddRow, onDeleteR
           + Add Row
         </button>
       </div>
+
+      {popover && (
+        <TriangularPopover
+          costMin={popover.costMin}
+          costExpected={popover.costExpected}
+          costMax={popover.costMax}
+          anchorRect={popover.anchorRect}
+          onSave={handlePopoverSave}
+          onClear={handlePopoverClear}
+          onClose={() => setPopover(null)}
+        />
+      )}
     </div>
   );
 }
