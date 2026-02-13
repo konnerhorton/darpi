@@ -6,3 +6,8 @@ html, body, #root {
   height: 100%;
   margin: 0;
 }
+
+/* Show comment "+" trigger when hovering over a cell */
+.ag-cell:hover .comment-trigger {
+  opacity: 1 !important;
+}

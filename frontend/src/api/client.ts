@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Register, Risk } from '../types';
+import type { Register, Risk, CellComment, CommentCount } from '../types';
 
 const api = axios.create({ baseURL: '/api/v1' });
 
@@ -25,3 +25,26 @@ export const updateRisk = (id: string, data: Partial<Risk>) =>
 
 export const deleteRisk = (id: string) =>
   api.delete(`/risks/${id}`);
+
+// Comments
+export const listComments = (riskId: string, columnKey?: string) => {
+  const params = columnKey ? { column_key: columnKey } : {};
+  return api.get<CellComment[]>(`/risks/${riskId}/comments`, { params }).then(r => r.data);
+};
+
+export const getCommentCounts = (registerId: string) =>
+  api.get<CommentCount[]>(`/registers/${registerId}/comments/counts`).then(r => r.data);
+
+export const createComment = (riskId: string, data: {
+  column_key: string;
+  author_name: string;
+  content: string;
+  proposed_value?: string | null;
+}) =>
+  api.post<CellComment>(`/risks/${riskId}/comments`, data).then(r => r.data);
+
+export const acceptProposal = (commentId: string) =>
+  api.post<CellComment>(`/comments/${commentId}/accept`).then(r => r.data);
+
+export const rejectProposal = (commentId: string) =>
+  api.post<CellComment>(`/comments/${commentId}/reject`).then(r => r.data);

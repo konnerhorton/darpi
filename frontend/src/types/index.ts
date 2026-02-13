@@ -23,3 +23,21 @@ export interface Risk {
   created_at: string;
   updated_at: string;
 }
+
+export interface CellComment {
+  id: string;
+  risk_id: string;
+  column_key: string;
+  author_name: string;
+  content: string;
+  proposed_value: string | null;
+  status: 'active' | 'accepted' | 'rejected';
+  created_at: string;
+}
+
+export interface CommentCount {
+  risk_id: string;
+  column_key: string;
+  comment_count: number;
+  proposal_count: number;
+}

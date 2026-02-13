@@ -2,26 +2,25 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { themeAlpine } from 'ag-grid-community';
 import type { ColDef, CellValueChangedEvent, GridReadyEvent, ICellRendererParams } from 'ag-grid-community';
-import type { Risk } from '../types';
+import type { Risk, CommentCount } from '../types';
 import TriangularPopover from './TriangularPopover';
+import CommentModal from './CommentModal';
 
 interface RegisterTableProps {
   risks: Risk[];
+  commentCounts: CommentCount[];
   onCellChange: (riskId: string, field: string, value: unknown) => void;
   onTriangularChange: (riskId: string, min: number, expected: number, max: number) => void;
   onClearTriangular: (riskId: string, singleValue: number) => void;
   onAddRow: () => void;
   onDeleteRow: (riskId: string) => void;
+  onRiskUpdated: (risk: Risk) => void;
+  onRefreshCommentCounts: () => void;
 }
 
 const formatCurrency = (value: number | null) => {
   if (value == null) return '';
   return '$' + value.toLocaleString('en-US', { maximumFractionDigits: 0 });
-};
-
-const percentFormatter = (params: { value: number | null }) => {
-  if (params.value == null) return '';
-  return params.value + '%';
 };
 
 interface PopoverState {
@@ -32,12 +31,86 @@ interface PopoverState {
   anchorRect: DOMRect;
 }
 
+interface ModalState {
+  risk: Risk;
+  columnKey: string;
+}
+
 export default function RegisterTable({
-  risks, onCellChange, onTriangularChange, onClearTriangular, onAddRow, onDeleteRow,
+  risks, commentCounts, onCellChange, onTriangularChange, onClearTriangular,
+  onAddRow, onDeleteRow, onRiskUpdated, onRefreshCommentCounts,
 }: RegisterTableProps) {
   const gridRef = useRef<AgGridReact>(null);
   const [popover, setPopover] = useState<PopoverState | null>(null);
+  const [modal, setModal] = useState<ModalState | null>(null);
 
+  // Build a lookup for comment counts: "riskId:columnKey" -> { comments, proposals }
+  const countMap = useMemo(() => {
+    const map = new Map<string, { comments: number; proposals: number }>();
+    for (const c of commentCounts) {
+      map.set(`${c.risk_id}:${c.column_key}`, { comments: c.comment_count, proposals: c.proposal_count });
+    }
+    return map;
+  }, [commentCounts]);
+
+  // Badge component — always clickable, visible indicator when comments exist
+  const CommentBadge = useCallback(({ riskId, columnKey }: { riskId: string; columnKey: string }) => {
+    const counts = countMap.get(`${riskId}:${columnKey}`);
+    const hasComments = counts && counts.comments > 0;
+    const hasProposals = counts && counts.proposals > 0;
+
+    if (!hasComments) {
+      // No comments — show trigger that appears on cell hover via CSS
+      return (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            const risk = risks.find(r => r.id === riskId);
+            if (risk) setModal({ risk, columnKey });
+          }}
+          className="comment-trigger ml-1 text-gray-400 hover:text-blue-500 text-xs leading-none opacity-0 transition-opacity"
+          title="Add comment"
+        >
+          +
+        </button>
+      );
+    }
+
+    return (
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          const risk = risks.find(r => r.id === riskId);
+          if (risk) setModal({ risk, columnKey });
+        }}
+        className={`ml-1 text-xs leading-none rounded-full min-w-[16px] text-center ${
+          hasProposals
+            ? 'bg-blue-500 text-white font-bold'
+            : 'bg-orange-400 text-white'
+        }`}
+        title={`${counts.comments} comment${counts.comments > 1 ? 's' : ''}${hasProposals ? `, ${counts.proposals} proposal${counts.proposals > 1 ? 's' : ''}` : ''}`}
+      >
+        {hasProposals ? counts.proposals : counts.comments}
+      </button>
+    );
+  }, [countMap, risks]);
+
+  // Generic cell renderer with comment badge
+  const makeCellRenderer = useCallback((columnKey: string, format?: (risk: Risk) => string) => {
+    return (params: ICellRendererParams) => {
+      const risk = params.data as Risk;
+      if (!risk) return null;
+      const value = format ? format(risk) : (params.valueFormatted ?? params.value ?? '');
+      return (
+        <span className="flex items-center w-full">
+          <span className="flex-1 truncate">{value}</span>
+          <CommentBadge riskId={risk.id} columnKey={columnKey} />
+        </span>
+      );
+    };
+  }, [CommentBadge]);
+
+  // Cost cell renderer with triangular indicator + comment badge
   const CostCellRenderer = useCallback((params: ICellRendererParams) => {
     const risk = params.data as Risk;
     if (!risk) return null;
@@ -65,9 +138,7 @@ export default function RegisterTable({
         <button
           onClick={handleTriangularClick}
           className={`text-xs leading-none px-0.5 rounded ${
-            isTriangular
-              ? 'text-blue-600 font-bold'
-              : 'text-gray-400 hover:text-gray-600'
+            isTriangular ? 'text-blue-600 font-bold' : 'text-gray-400 hover:text-gray-600'
           }`}
           title={isTriangular
             ? `Min: ${formatCurrency(risk.cost_min)} / Exp: ${formatCurrency(risk.cost_expected)} / Max: ${formatCurrency(risk.cost_max)}`
@@ -76,22 +147,47 @@ export default function RegisterTable({
         >
           ▲
         </button>
+        <CommentBadge riskId={risk.id} columnKey="cost" />
       </span>
     );
-  }, []);
+  }, [CommentBadge]);
+
+  const DeleteCellRenderer = useCallback((params: ICellRendererParams) => {
+    const risk = params.data as Risk;
+    if (!risk) return null;
+    return (
+      <button
+        onClick={() => onDeleteRow(risk.id)}
+        className="text-gray-300 hover:text-red-500 text-sm"
+        title="Delete row"
+      >
+        &times;
+      </button>
+    );
+  }, [onDeleteRow]);
 
   const columnDefs = useMemo<ColDef[]>(() => [
-    { field: 'display_id', headerName: 'ID', width: 80, editable: false, sortable: false },
-    { field: 'title', headerName: 'Title', width: 250, editable: true },
-    { field: 'description', headerName: 'Description', width: 200, editable: true },
-    { field: 'category', headerName: 'Category', width: 120, editable: true },
     {
-      field: 'probability',
-      headerName: 'Probability',
-      width: 110,
-      editable: true,
+      headerName: '', width: 36, editable: false, sortable: false,
+      cellRenderer: DeleteCellRenderer, suppressSizeToFit: true,
+    },
+    { field: 'display_id', headerName: 'ID', width: 80, editable: false, sortable: false, suppressSizeToFit: true },
+    {
+      field: 'title', headerName: 'Title', flex: 2, minWidth: 150, editable: true,
+      cellRenderer: makeCellRenderer('title'),
+    },
+    {
+      field: 'description', headerName: 'Description', flex: 2, minWidth: 120, editable: true,
+      cellRenderer: makeCellRenderer('description'),
+    },
+    {
+      field: 'category', headerName: 'Category', flex: 1, minWidth: 100, editable: true,
+      cellRenderer: makeCellRenderer('category'),
+    },
+    {
+      field: 'probability', headerName: 'Probability', width: 120, editable: true,
       type: 'numericColumn',
-      valueFormatter: percentFormatter,
+      cellRenderer: makeCellRenderer('probability', (r) => r.probability != null ? `${r.probability}%` : ''),
       valueSetter: (params) => {
         const val = parseFloat(params.newValue);
         if (isNaN(val) || val < 0 || val > 100) return false;
@@ -100,9 +196,7 @@ export default function RegisterTable({
       },
     },
     {
-      headerName: 'Cost',
-      width: 150,
-      editable: true,
+      headerName: 'Cost', width: 160, editable: true,
       type: 'numericColumn',
       cellRenderer: CostCellRenderer,
       valueGetter: (params) => {
@@ -121,8 +215,11 @@ export default function RegisterTable({
         return true;
       },
     },
-    { field: 'notes', headerName: 'Notes', width: 150, editable: true },
-  ], [CostCellRenderer]);
+    {
+      field: 'notes', headerName: 'Notes', flex: 1, minWidth: 100, editable: true,
+      cellRenderer: makeCellRenderer('notes'),
+    },
+  ], [CostCellRenderer, makeCellRenderer]);
 
   const defaultColDef = useMemo<ColDef>(() => ({
     resizable: true,
@@ -143,17 +240,6 @@ export default function RegisterTable({
     params.api.sizeColumnsToFit();
   }, []);
 
-  const getContextMenuItems = useCallback((params: { node?: { data?: Risk } | null }) => {
-    if (!params.node?.data) return [];
-    const riskId = params.node.data.id;
-    return [
-      {
-        name: 'Delete Row',
-        action: () => onDeleteRow(riskId),
-      },
-    ];
-  }, [onDeleteRow]);
-
   const handlePopoverSave = useCallback((min: number, expected: number, max: number) => {
     if (!popover) return;
     onTriangularChange(popover.riskId, min, expected, max);
@@ -167,6 +253,15 @@ export default function RegisterTable({
     onClearTriangular(popover.riskId, singleValue);
     setPopover(null);
   }, [popover, risks, onClearTriangular]);
+
+  const handleModalClose = useCallback(() => {
+    setModal(null);
+    onRefreshCommentCounts();
+  }, [onRefreshCommentCounts]);
+
+  const handleModalRiskUpdated = useCallback((updatedRisk: Risk) => {
+    onRiskUpdated(updatedRisk);
+  }, [onRiskUpdated]);
 
   return (
     <div className="h-full overflow-auto">
@@ -183,7 +278,6 @@ export default function RegisterTable({
           onGridReady={onGridReady}
           singleClickEdit={false}
           stopEditingWhenCellsLoseFocus={true}
-          getContextMenuItems={getContextMenuItems}
         />
       </div>
       <div className="p-2 border-t border-gray-200 bg-white">
@@ -204,6 +298,15 @@ export default function RegisterTable({
           onSave={handlePopoverSave}
           onClear={handlePopoverClear}
           onClose={() => setPopover(null)}
+        />
+      )}
+
+      {modal && (
+        <CommentModal
+          risk={modal.risk}
+          columnKey={modal.columnKey}
+          onClose={handleModalClose}
+          onRiskUpdated={handleModalRiskUpdated}
         />
       )}
     </div>

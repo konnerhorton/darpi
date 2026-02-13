@@ -2,13 +2,20 @@ import { useState, useEffect, useCallback } from 'react';
 import Toolbar from './components/Toolbar';
 import RegisterTable from './components/RegisterTable';
 import * as api from './api/client';
-import type { Register, Risk } from './types';
+import type { Register, Risk, CommentCount } from './types';
 
 export default function App() {
   const [register, setRegister] = useState<Register | null>(null);
   const [risks, setRisks] = useState<Risk[]>([]);
+  const [commentCounts, setCommentCounts] = useState<CommentCount[]>([]);
   const [activeTab, setActiveTab] = useState('Register');
   const [loading, setLoading] = useState(true);
+
+  const refreshCommentCounts = useCallback(async () => {
+    if (!register) return;
+    const counts = await api.getCommentCounts(register.id);
+    setCommentCounts(counts);
+  }, [register]);
 
   // Bootstrap: load or create a register
   useEffect(() => {
@@ -22,8 +29,12 @@ export default function App() {
           reg = await api.createRegister('New Risk Register');
         }
         setRegister(reg);
-        const riskData = await api.listRisks(reg.id);
+        const [riskData, counts] = await Promise.all([
+          api.listRisks(reg.id),
+          api.getCommentCounts(reg.id),
+        ]);
         setRisks(riskData);
+        setCommentCounts(counts);
       } catch (err) {
         console.error('Failed to load register:', err);
       } finally {
@@ -44,7 +55,6 @@ export default function App() {
   }, [register]);
 
   const handleCellChange = useCallback(async (riskId: string, field: string, value: unknown) => {
-    // Optimistic update already applied by AG Grid's local row data mutation
     try {
       if (field === 'cost_single') {
         const risk = risks.find(r => r.id === riskId);
@@ -59,7 +69,6 @@ export default function App() {
       }
     } catch (err) {
       console.error('Failed to save:', err);
-      // Reload to revert
       if (register) {
         const fresh = await api.listRisks(register.id);
         setRisks(fresh);
@@ -78,7 +87,6 @@ export default function App() {
   }, [register]);
 
   const handleTriangularChange = useCallback(async (riskId: string, min: number, expected: number, max: number) => {
-    // Optimistic update
     setRisks(prev => prev.map(r =>
       r.id === riskId ? { ...r, cost_min: min, cost_expected: expected, cost_max: max, cost_single: null } : r
     ));
@@ -116,6 +124,10 @@ export default function App() {
     }
   }, [risks]);
 
+  const handleRiskUpdated = useCallback((updatedRisk: Risk) => {
+    setRisks(prev => prev.map(r => r.id === updatedRisk.id ? updatedRisk : r));
+  }, []);
+
   if (loading) {
     return <div className="flex items-center justify-center h-full text-gray-500">Loading...</div>;
   }
@@ -136,11 +148,14 @@ export default function App() {
         {activeTab === 'Register' && (
           <RegisterTable
             risks={risks}
+            commentCounts={commentCounts}
             onCellChange={handleCellChange}
             onTriangularChange={handleTriangularChange}
             onClearTriangular={handleClearTriangular}
             onAddRow={handleAddRow}
             onDeleteRow={handleDeleteRow}
+            onRiskUpdated={handleRiskUpdated}
+            onRefreshCommentCounts={refreshCommentCounts}
           />
         )}
         {activeTab === 'Mitigations' && (

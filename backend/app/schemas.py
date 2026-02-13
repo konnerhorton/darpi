@@ -79,3 +79,25 @@ class ReorderItem(BaseModel):
 
 class ReorderRequest(BaseModel):
     items: list[ReorderItem]
+
+
+# --- Comments ---
+
+class CommentCreate(BaseModel):
+    column_key: str
+    author_name: str
+    content: str
+    proposed_value: str | None = None
+
+
+class CommentOut(BaseModel):
+    id: str
+    risk_id: str
+    column_key: str
+    author_name: str
+    content: str
+    proposed_value: str | None
+    status: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
