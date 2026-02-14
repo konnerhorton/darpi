@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.database import engine
 from app.models import Base
-from app.routers import analysis, comments, registers, risks
+from app.routers import analysis, comments, mitigations, registers, risks
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
 
@@ -33,6 +33,7 @@ app.add_middleware(
 app.include_router(registers.router, prefix="/api/v1")
 app.include_router(risks.router, prefix="/api/v1")
 app.include_router(comments.router, prefix="/api/v1")
+app.include_router(mitigations.router, prefix="/api/v1")
 app.include_router(analysis.router, prefix="/api/v1")
 
 # Serve built frontend (if it exists)

@@ -72,6 +72,7 @@ class Mitigation(Base):
 
     register: Mapped["Register"] = relationship(back_populates="mitigations")
     risk_mitigations: Mapped[list["RiskMitigation"]] = relationship(back_populates="mitigation", cascade="all, delete-orphan")
+    comments: Mapped[list["CellComment"]] = relationship(back_populates="mitigation", cascade="all, delete-orphan")
 
 
 class RiskMitigation(Base):
@@ -91,7 +92,8 @@ class CellComment(Base):
     __tablename__ = "cell_comments"
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=_uuid)
-    risk_id: Mapped[str] = mapped_column(ForeignKey("risks.id", ondelete="CASCADE"))
+    risk_id: Mapped[str | None] = mapped_column(ForeignKey("risks.id", ondelete="CASCADE"), nullable=True)
+    mitigation_id: Mapped[str | None] = mapped_column(ForeignKey("mitigations.id", ondelete="CASCADE"), nullable=True)
     column_key: Mapped[str] = mapped_column(Text, nullable=False)
     author_name: Mapped[str] = mapped_column(Text, nullable=False, default="")
     content: Mapped[str] = mapped_column(Text, nullable=False, default="")
@@ -99,7 +101,8 @@ class CellComment(Base):
     status: Mapped[str] = mapped_column(Text, nullable=False, default="active")
     created_at: Mapped[datetime] = mapped_column(default=_now)
 
-    risk: Mapped["Risk"] = relationship(back_populates="comments")
+    risk: Mapped["Risk | None"] = relationship(back_populates="comments")
+    mitigation: Mapped["Mitigation | None"] = relationship(back_populates="comments")
 
 
 class Snapshot(Base):

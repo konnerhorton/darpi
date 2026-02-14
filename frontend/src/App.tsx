@@ -1,14 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import Toolbar from './components/Toolbar';
 import RegisterTable from './components/RegisterTable';
+import MitigationTable from './components/MitigationTable';
 import AnalysisView from './components/AnalysisView';
 import * as api from './api/client';
-import type { Register, Risk, CommentCount } from './types';
+import type { Register, Risk, Mitigation, CommentCount, MitigationCommentCount } from './types';
 
 export default function App() {
   const [register, setRegister] = useState<Register | null>(null);
   const [risks, setRisks] = useState<Risk[]>([]);
+  const [mitigations, setMitigations] = useState<Mitigation[]>([]);
   const [commentCounts, setCommentCounts] = useState<CommentCount[]>([]);
+  const [mitigationCommentCounts, setMitigationCommentCounts] = useState<MitigationCommentCount[]>([]);
   const [activeTab, setActiveTab] = useState('Register');
   const [loading, setLoading] = useState(true);
 
@@ -16,6 +19,12 @@ export default function App() {
     if (!register) return;
     const counts = await api.getCommentCounts(register.id);
     setCommentCounts(counts);
+  }, [register]);
+
+  const refreshMitigationCommentCounts = useCallback(async () => {
+    if (!register) return;
+    const counts = await api.getMitigationCommentCounts(register.id);
+    setMitigationCommentCounts(counts);
   }, [register]);
 
   // Bootstrap: load or create a register
@@ -30,12 +39,16 @@ export default function App() {
           reg = await api.createRegister('New Risk Register');
         }
         setRegister(reg);
-        const [riskData, counts] = await Promise.all([
+        const [riskData, counts, mitData, mitCounts] = await Promise.all([
           api.listRisks(reg.id),
           api.getCommentCounts(reg.id),
+          api.listMitigations(reg.id),
+          api.getMitigationCommentCounts(reg.id),
         ]);
         setRisks(riskData);
         setCommentCounts(counts);
+        setMitigations(mitData);
+        setMitigationCommentCounts(mitCounts);
       } catch (err) {
         console.error('Failed to load register:', err);
       } finally {
@@ -129,6 +142,73 @@ export default function App() {
     setRisks(prev => prev.map(r => r.id === updatedRisk.id ? updatedRisk : r));
   }, []);
 
+  // --- Mitigation handlers ---
+
+  const handleMitigationCellChange = useCallback(async (mitigationId: string, field: string, value: unknown) => {
+    try {
+      const updated = await api.updateMitigation(mitigationId, { [field]: value } as Partial<Mitigation>);
+      setMitigations(prev => prev.map(m => m.id === updated.id ? updated : m));
+    } catch (err) {
+      console.error('Failed to save mitigation:', err);
+      if (register) {
+        const fresh = await api.listMitigations(register.id);
+        setMitigations(fresh);
+      }
+    }
+  }, [register]);
+
+  const handleAddMitigation = useCallback(async () => {
+    if (!register) return;
+    try {
+      const newMit = await api.createMitigation(register.id);
+      setMitigations(prev => [...prev, newMit]);
+    } catch (err) {
+      console.error('Failed to add mitigation:', err);
+    }
+  }, [register]);
+
+  const handleDeleteMitigation = useCallback(async (mitigationId: string) => {
+    const prev = mitigations;
+    setMitigations(m => m.filter(mit => mit.id !== mitigationId));
+    try {
+      await api.deleteMitigation(mitigationId);
+    } catch {
+      setMitigations(prev);
+    }
+  }, [mitigations]);
+
+  const handleLinkRisk = useCallback(async (mitigationId: string, riskId: string) => {
+    setMitigations(prev => prev.map(m =>
+      m.id === mitigationId ? { ...m, linked_risk_ids: [...m.linked_risk_ids, riskId] } : m
+    ));
+    try {
+      await api.linkRisk(mitigationId, riskId);
+    } catch {
+      if (register) {
+        const fresh = await api.listMitigations(register.id);
+        setMitigations(fresh);
+      }
+    }
+  }, [register]);
+
+  const handleUnlinkRisk = useCallback(async (mitigationId: string, riskId: string) => {
+    setMitigations(prev => prev.map(m =>
+      m.id === mitigationId ? { ...m, linked_risk_ids: m.linked_risk_ids.filter(id => id !== riskId) } : m
+    ));
+    try {
+      await api.unlinkRisk(mitigationId, riskId);
+    } catch {
+      if (register) {
+        const fresh = await api.listMitigations(register.id);
+        setMitigations(fresh);
+      }
+    }
+  }, [register]);
+
+  const handleNavigateToRisk = useCallback(() => {
+    setActiveTab('Register');
+  }, []);
+
   if (loading) {
     return <div className="flex items-center justify-center h-full text-gray-500">Loading...</div>;
   }
@@ -160,9 +240,18 @@ export default function App() {
           />
         )}
         {activeTab === 'Mitigations' && (
-          <div className="flex items-center justify-center h-full text-gray-400">
-            Mitigations — coming in Phase 4
-          </div>
+          <MitigationTable
+            mitigations={mitigations}
+            risks={risks}
+            commentCounts={mitigationCommentCounts}
+            onCellChange={handleMitigationCellChange}
+            onAddRow={handleAddMitigation}
+            onDeleteRow={handleDeleteMitigation}
+            onLinkRisk={handleLinkRisk}
+            onUnlinkRisk={handleUnlinkRisk}
+            onNavigateToRisk={handleNavigateToRisk}
+            onRefreshCommentCounts={refreshMitigationCommentCounts}
+          />
         )}
         {activeTab === 'Analysis' && (
           <AnalysisView registerId={register.id} />

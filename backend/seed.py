@@ -1,4 +1,4 @@
-"""Seed script: creates 10 realistic construction risks with comments and proposals."""
+"""Seed script: creates 10 realistic construction risks, mitigations with risk links, and comments/proposals."""
 
 import httpx
 import time
@@ -166,6 +166,55 @@ COMMENT_THREADS = [
 # Which proposals to accept (by thread index)
 ACCEPT_THREADS = [2, 5, 8]  # Steel probability, Design cost, Scope creep probability
 
+# Mitigations to seed
+MITIGATIONS = [
+    {
+        "title": "Phase 2 environmental site assessment",
+        "description": "Commission soil borings and lab analysis at identified hotspots to quantify contamination extent.",
+        "notes": "RFP sent to three environmental consultants. Target completion: 6 weeks.",
+        # Links to: R-001 (ground contamination)
+        "link_risk_indices": [0],
+    },
+    {
+        "title": "Early steel procurement / price lock",
+        "description": "Negotiate fixed-price contracts with steel suppliers and lock in pricing before Q2 escalation.",
+        "notes": "Procurement team reviewing three supplier proposals.",
+        # Links to: R-002 (steel price), R-009 (concrete supply)
+        "link_risk_indices": [1, 8],
+    },
+    {
+        "title": "Pre-application meetings with city planning",
+        "description": "Schedule early engagement with permitting authority to identify potential issues and expedite review.",
+        "notes": "First meeting held — positive response. Follow-up scheduled for next month.",
+        # Links to: R-003 (permit delays)
+        "link_risk_indices": [2],
+    },
+    {
+        "title": "Backup subcontractor qualification",
+        "description": "Qualify and pre-negotiate terms with two alternative mechanical subcontractors.",
+        "notes": "Two firms identified. Site visits scheduled.",
+        # Links to: R-004 (subcontractor default), R-008 (labor shortage)
+        "link_risk_indices": [3, 7],
+    },
+]
+
+MITIGATION_COMMENTS = [
+    # M-001: Phase 2 ESA
+    (0, "title", [
+        {"author_name": "Sarah Chen", "content": "Should we also include groundwater sampling in the Phase 2 scope?"},
+        {"author_name": "David Park", "content": "Yes — the RFP should require both soil and groundwater analysis."},
+    ]),
+    # M-002: Steel procurement
+    (1, "notes", [
+        {"author_name": "Lisa Wang", "content": "One supplier offered a 90-day price hold. We should move fast on this."},
+    ]),
+    # M-004: Backup subs
+    (3, "description", [
+        {"author_name": "Mike Torres", "content": "Make sure the backup subs can mobilize within 2 weeks if needed."},
+        {"author_name": "Sarah Chen", "content": "Good point. I'll add mobilization timeline as a pre-qualification criterion."},
+    ]),
+]
+
 
 def main():
     client = httpx.Client(timeout=10)
@@ -178,7 +227,11 @@ def main():
         existing_risks = client.get(f"{BASE}/registers/{reg_id}/risks").json()
         for r in existing_risks:
             client.delete(f"{BASE}/risks/{r['id']}")
-        print(f"Cleared {len(existing_risks)} existing risks from register {reg_id}")
+        # Delete existing mitigations
+        existing_mits = client.get(f"{BASE}/registers/{reg_id}/mitigations").json()
+        for m in existing_mits:
+            client.delete(f"{BASE}/mitigations/{m['id']}")
+        print(f"Cleared {len(existing_risks)} risks and {len(existing_mits)} mitigations from register {reg_id}")
     else:
         reg = client.post(f"{BASE}/registers", json={"name": "Highway Bridge Rehabilitation"}).json()
         reg_id = reg["id"]
@@ -216,7 +269,33 @@ def main():
             col = COMMENT_THREADS[thread_idx][1]
             print(f"  Accepted proposal on {created_risks[risk_idx]['display_id']}.{col} by {last_proposal['author_name']}")
 
-    print(f"\nDone! Created {len(created_risks)} risks with {sum(len(v) for v in created_comments.values())} comments.")
+    # Create mitigations with risk links
+    created_mits = []
+    for mit_data in MITIGATIONS:
+        link_indices = mit_data.pop("link_risk_indices")
+        m = client.post(f"{BASE}/registers/{reg_id}/mitigations", json=mit_data).json()
+        created_mits.append(m)
+        print(f"  Created {m['display_id']}: {m['title']}")
+
+        # Link risks
+        for risk_idx in link_indices:
+            risk_id = created_risks[risk_idx]["id"]
+            client.post(f"{BASE}/mitigations/{m['id']}/risks/{risk_id}")
+            print(f"    Linked to {created_risks[risk_idx]['display_id']}")
+
+    # Add mitigation comments
+    for mit_idx, col_key, comments in MITIGATION_COMMENTS:
+        mit_id = created_mits[mit_idx]["id"]
+        for comment in comments:
+            client.post(f"{BASE}/mitigations/{mit_id}/comments", json={
+                "column_key": col_key,
+                **comment,
+            })
+            print(f"  Mitigation comment on {created_mits[mit_idx]['display_id']}.{col_key}: {comment['author_name']}")
+
+    print(f"\nDone! Created {len(created_risks)} risks, {len(created_mits)} mitigations with "
+          f"{sum(len(v) for v in created_comments.values())} risk comments and "
+          f"{sum(len(c) for _, _, c in MITIGATION_COMMENTS)} mitigation comments.")
     print("Refresh your browser to see the data.")
 
 

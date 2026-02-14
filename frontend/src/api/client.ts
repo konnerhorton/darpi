@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Register, Risk, CellComment, CommentCount } from '../types';
+import type { Register, Risk, Mitigation, CellComment, CommentCount, MitigationCommentCount } from '../types';
 
 const api = axios.create({ baseURL: '/api/v1' });
 
@@ -48,6 +48,40 @@ export const acceptProposal = (commentId: string) =>
 
 export const rejectProposal = (commentId: string) =>
   api.post<CellComment>(`/comments/${commentId}/reject`).then(r => r.data);
+
+// Mitigations
+export const listMitigations = (registerId: string) =>
+  api.get<Mitigation[]>(`/registers/${registerId}/mitigations`).then(r => r.data);
+
+export const createMitigation = (registerId: string, data?: Partial<Mitigation>) =>
+  api.post<Mitigation>(`/registers/${registerId}/mitigations`, data ?? {}).then(r => r.data);
+
+export const updateMitigation = (id: string, data: Partial<Mitigation>) =>
+  api.patch<Mitigation>(`/mitigations/${id}`, data).then(r => r.data);
+
+export const deleteMitigation = (id: string) =>
+  api.delete(`/mitigations/${id}`);
+
+export const linkRisk = (mitigationId: string, riskId: string) =>
+  api.post(`/mitigations/${mitigationId}/risks/${riskId}`);
+
+export const unlinkRisk = (mitigationId: string, riskId: string) =>
+  api.delete(`/mitigations/${mitigationId}/risks/${riskId}`);
+
+export const listMitigationComments = (mitigationId: string, columnKey?: string) => {
+  const params = columnKey ? { column_key: columnKey } : {};
+  return api.get<CellComment[]>(`/mitigations/${mitigationId}/comments`, { params }).then(r => r.data);
+};
+
+export const createMitigationComment = (mitigationId: string, data: {
+  column_key: string;
+  author_name: string;
+  content: string;
+}) =>
+  api.post<CellComment>(`/mitigations/${mitigationId}/comments`, data).then(r => r.data);
+
+export const getMitigationCommentCounts = (registerId: string) =>
+  api.get<MitigationCommentCount[]>(`/registers/${registerId}/mitigations/comments/counts`).then(r => r.data);
 
 // Analysis
 export const runMonteCarlo = (registerId: string, iterations?: number) =>

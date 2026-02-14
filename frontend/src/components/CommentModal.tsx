@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import type { CellComment, Risk } from '../types';
+import type { CellComment, Risk, Mitigation } from '../types';
 import * as api from '../api/client';
 
 interface CommentModalProps {
-  risk: Risk;
+  risk?: Risk;
+  mitigation?: Mitigation;
   columnKey: string;
   onClose: () => void;
-  onRiskUpdated: (risk: Risk) => void;
+  onRiskUpdated?: (risk: Risk) => void;
 }
 
 const COLUMN_LABELS: Record<string, string> = {
@@ -32,6 +33,10 @@ function getCurrentValue(risk: Risk, columnKey: string): string {
   }
 }
 
+function getMitigationValue(mitigation: Mitigation, columnKey: string): string {
+  return (mitigation[columnKey as keyof Mitigation] as string) ?? '—';
+}
+
 function formatProposedValue(value: string, columnKey: string): string {
   if (columnKey === 'probability') return `${value}%`;
   if (columnKey === 'cost') {
@@ -46,7 +51,14 @@ function formatProposedValue(value: string, columnKey: string): string {
   return value;
 }
 
-export default function CommentModal({ risk, columnKey, onClose, onRiskUpdated }: CommentModalProps) {
+export default function CommentModal({ risk, mitigation, columnKey, onClose, onRiskUpdated }: CommentModalProps) {
+  const isMitigation = !!mitigation;
+  const entityId = isMitigation ? mitigation!.id : risk!.id;
+  const displayId = isMitigation ? mitigation!.display_id : risk!.display_id;
+  const currentValue = isMitigation
+    ? getMitigationValue(mitigation!, columnKey)
+    : getCurrentValue(risk!, columnKey);
+
   const [comments, setComments] = useState<CellComment[]>([]);
   const [loading, setLoading] = useState(true);
   const [content, setContent] = useState('');
@@ -60,14 +72,17 @@ export default function CommentModal({ risk, columnKey, onClose, onRiskUpdated }
   const modalRef = useRef<HTMLDivElement>(null);
   const threadRef = useRef<HTMLDivElement>(null);
 
-  const isTriangularCost = columnKey === 'cost' && risk.cost_min != null;
+  const isTriangularCost = !isMitigation && columnKey === 'cost' && risk!.cost_min != null;
 
   useEffect(() => {
-    api.listComments(risk.id, columnKey).then(c => {
+    const loadComments = isMitigation
+      ? api.listMitigationComments(entityId, columnKey)
+      : api.listComments(entityId, columnKey);
+    loadComments.then(c => {
       setComments(c);
       setLoading(false);
     });
-  }, [risk.id, columnKey]);
+  }, [entityId, columnKey, isMitigation]);
 
   useEffect(() => {
     if (threadRef.current) {
@@ -88,6 +103,22 @@ export default function CommentModal({ risk, columnKey, onClose, onRiskUpdated }
     setSubmitting(true);
     localStorage.setItem('darpi_author', authorName);
 
+    if (isMitigation) {
+      try {
+        const newComment = await api.createMitigationComment(entityId, {
+          column_key: columnKey,
+          author_name: authorName,
+          content: content,
+        });
+        setComments(prev => [...prev, newComment]);
+        setContent('');
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
+    // Risk comment with optional proposal
     let pv: string | null = null;
     if (isProposal) {
       if (columnKey === 'cost' && (proposedMin || proposedExpected || proposedMax)) {
@@ -106,7 +137,7 @@ export default function CommentModal({ risk, columnKey, onClose, onRiskUpdated }
     }
 
     try {
-      const newComment = await api.createComment(risk.id, {
+      const newComment = await api.createComment(entityId, {
         column_key: columnKey,
         author_name: authorName,
         content: content,
@@ -128,16 +159,16 @@ export default function CommentModal({ risk, columnKey, onClose, onRiskUpdated }
     const updated = await api.acceptProposal(commentId);
     setComments(prev => prev.map(c => {
       if (c.id === updated.id) return updated;
-      // Other active proposals on this cell get rejected
       if (c.proposed_value && c.status === 'active' && c.id !== updated.id) {
         return { ...c, status: 'rejected' as const };
       }
       return c;
     }));
-    // Refresh the risk to get the updated value
-    const freshRisks = await api.listRisks(risk.register_id);
-    const freshRisk = freshRisks.find(r => r.id === risk.id);
-    if (freshRisk) onRiskUpdated(freshRisk);
+    if (risk && onRiskUpdated) {
+      const freshRisks = await api.listRisks(risk.register_id);
+      const freshRisk = freshRisks.find(r => r.id === risk.id);
+      if (freshRisk) onRiskUpdated(freshRisk);
+    }
   };
 
   const handleReject = async (commentId: string) => {
@@ -161,9 +192,9 @@ export default function CommentModal({ risk, columnKey, onClose, onRiskUpdated }
         <div className="px-4 py-3 border-b border-gray-200">
           <div className="flex justify-between items-start">
             <div>
-              <span className="font-semibold text-sm">{risk.display_id}</span>
+              <span className="font-semibold text-sm">{displayId}</span>
               <span className="text-gray-500 text-sm"> — {COLUMN_LABELS[columnKey] ?? columnKey}: </span>
-              <span className="text-sm font-medium">{getCurrentValue(risk, columnKey)}</span>
+              <span className="text-sm font-medium">{currentValue}</span>
             </div>
             <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none">&times;</button>
           </div>
@@ -197,7 +228,7 @@ export default function CommentModal({ risk, columnKey, onClose, onRiskUpdated }
                   <div className={`mb-1 font-medium ${
                     c.status === 'rejected' ? 'line-through text-gray-400' : 'text-blue-700'
                   }`}>
-                    {c.status === 'accepted' ? '✓ ' : ''}
+                    {c.status === 'accepted' ? '\u2713 ' : ''}
                     Proposes: {formatProposedValue(c.proposed_value, columnKey)}
                     {c.status === 'accepted' && (
                       <span className="text-green-600 font-normal text-xs ml-1">— accepted</span>
@@ -207,7 +238,7 @@ export default function CommentModal({ risk, columnKey, onClose, onRiskUpdated }
                 <div className={c.status === 'rejected' && c.proposed_value ? 'text-gray-400' : 'text-gray-600'}>
                   {c.content}
                 </div>
-                {c.proposed_value && c.status === 'active' && (
+                {c.proposed_value && c.status === 'active' && !isMitigation && (
                   <div className="flex gap-2 mt-2">
                     <button
                       onClick={() => handleAccept(c.id)}
@@ -237,17 +268,19 @@ export default function CommentModal({ risk, columnKey, onClose, onRiskUpdated }
               placeholder="Your name"
               className="border border-gray-300 rounded px-2 py-1 text-sm w-32"
             />
-            <label className="flex items-center gap-1 text-sm text-gray-600 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={isProposal}
-                onChange={e => setIsProposal(e.target.checked)}
-                className="rounded"
-              />
-              Propose a value
-            </label>
+            {!isMitigation && (
+              <label className="flex items-center gap-1 text-sm text-gray-600 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={isProposal}
+                  onChange={e => setIsProposal(e.target.checked)}
+                  className="rounded"
+                />
+                Propose a value
+              </label>
+            )}
           </div>
-          {isProposal && (
+          {!isMitigation && isProposal && (
             <div className="space-y-1">
               {columnKey === 'cost' ? (
                 <div className="flex gap-2">
@@ -289,7 +322,7 @@ export default function CommentModal({ risk, columnKey, onClose, onRiskUpdated }
               value={content}
               onChange={e => setContent(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(); } }}
-              placeholder={isProposal ? 'Rationale...' : 'Add a comment...'}
+              placeholder={isProposal && !isMitigation ? 'Rationale...' : 'Add a comment...'}
               className="border border-gray-300 rounded px-2 py-1 text-sm flex-1"
             />
             <button
@@ -297,7 +330,7 @@ export default function CommentModal({ risk, columnKey, onClose, onRiskUpdated }
               disabled={submitting || !content.trim() || !authorName.trim()}
               className="text-sm px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
             >
-              {isProposal ? 'Propose' : 'Comment'}
+              {isProposal && !isMitigation ? 'Propose' : 'Comment'}
             </button>
           </div>
         </div>

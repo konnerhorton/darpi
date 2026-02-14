@@ -92,7 +92,8 @@ class CommentCreate(BaseModel):
 
 class CommentOut(BaseModel):
     id: str
-    risk_id: str
+    risk_id: str | None
+    mitigation_id: str | None = None
     column_key: str
     author_name: str
     content: str
@@ -101,3 +102,39 @@ class CommentOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+# --- Mitigations ---
+
+class MitigationCreate(BaseModel):
+    title: str = ""
+    description: str | None = None
+    notes: str | None = None
+
+
+class MitigationUpdate(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    notes: str | None = None
+    sort_order: int | None = None
+
+
+class MitigationOut(BaseModel):
+    id: str
+    register_id: str
+    display_id: str
+    title: str
+    description: str | None
+    notes: str | None
+    sort_order: int
+    created_at: datetime
+    updated_at: datetime
+    linked_risk_ids: list[str] = []
+
+    model_config = {"from_attributes": True}
+
+
+class MitigationCommentCreate(BaseModel):
+    column_key: str
+    author_name: str
+    content: str

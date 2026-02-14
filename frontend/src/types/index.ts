@@ -35,11 +35,30 @@ export interface CellComment {
   created_at: string;
 }
 
+export interface Mitigation {
+  id: string;
+  register_id: string;
+  display_id: string;
+  title: string;
+  description: string | null;
+  notes: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  linked_risk_ids: string[];
+}
+
 export interface CommentCount {
   risk_id: string;
   column_key: string;
   comment_count: number;
   proposal_count: number;
+}
+
+export interface MitigationCommentCount {
+  mitigation_id: string;
+  column_key: string;
+  comment_count: number;
 }
 
 export interface MonteCarloResult {
