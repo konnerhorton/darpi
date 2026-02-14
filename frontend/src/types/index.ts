@@ -41,3 +41,27 @@ export interface CommentCount {
   comment_count: number;
   proposal_count: number;
 }
+
+export interface MonteCarloResult {
+  iterations: number;
+  risk_count: number;
+  mean: number;
+  std_dev: number;
+  min: number;
+  max: number;
+  zero_pct: number;
+  p10: number;
+  p20: number;
+  p25: number;
+  p30: number;
+  p40: number;
+  p50: number;
+  p60: number;
+  p70: number;
+  p75: number;
+  p80: number;
+  p90: number;
+  p95: number;
+  histogram: { bin_edges: number[]; counts: number[] };
+  cdf: { x: number[]; y: number[] };
+}

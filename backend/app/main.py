@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import engine
 from app.models import Base
-from app.routers import comments, registers, risks
+from app.routers import analysis, comments, registers, risks
 
 
 @asynccontextmanager
@@ -28,3 +28,4 @@ app.add_middleware(
 app.include_router(registers.router, prefix="/api/v1")
 app.include_router(risks.router, prefix="/api/v1")
 app.include_router(comments.router, prefix="/api/v1")
+app.include_router(analysis.router, prefix="/api/v1")

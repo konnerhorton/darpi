@@ -48,3 +48,10 @@ export const acceptProposal = (commentId: string) =>
 
 export const rejectProposal = (commentId: string) =>
   api.post<CellComment>(`/comments/${commentId}/reject`).then(r => r.data);
+
+// Analysis
+export const runMonteCarlo = (registerId: string, iterations?: number) =>
+  api.get(`/registers/${registerId}/analysis/monte-carlo`, { params: iterations ? { iterations } : {} }).then(r => r.data);
+
+export const getAnalysisSummary = (registerId: string) =>
+  api.get(`/registers/${registerId}/analysis/summary`).then(r => r.data);

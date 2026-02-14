@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Toolbar from './components/Toolbar';
 import RegisterTable from './components/RegisterTable';
+import AnalysisView from './components/AnalysisView';
 import * as api from './api/client';
 import type { Register, Risk, CommentCount } from './types';
 
@@ -164,9 +165,7 @@ export default function App() {
           </div>
         )}
         {activeTab === 'Analysis' && (
-          <div className="flex items-center justify-center h-full text-gray-400">
-            Analysis — coming in Phase 5
-          </div>
+          <AnalysisView registerId={register.id} />
         )}
       </div>
     </div>
