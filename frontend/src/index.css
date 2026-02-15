@@ -11,3 +11,99 @@ html, body, #root {
 .ag-cell:hover .comment-trigger {
   opacity: 1 !important;
 }
+
+/* ── Expandable text cells ────────────────────────────────────── */
+
+/*
+ * AG Grid nests cells inside several overflow:hidden containers:
+ *   .ag-root-wrapper > .ag-root > .ag-body-viewport > .ag-center-cols-viewport
+ *     > .ag-center-cols-container > .ag-row > .ag-cell
+ * All viewport layers must allow overflow when an expandable cell is active.
+ * Safe because domLayout="autoHeight" means no internal grid scrolling.
+ */
+
+/* Unclip all ancestor containers when an expandable cell is focused/editing */
+.ag-root-wrapper:has(.ag-cell-focus.expandable-cell),
+.ag-root-wrapper:has(.ag-cell-editing.expandable-cell) {
+  overflow: visible !important;
+}
+
+.ag-root-wrapper:has(.ag-cell-focus.expandable-cell) .ag-root,
+.ag-root-wrapper:has(.ag-cell-editing.expandable-cell) .ag-root {
+  overflow: visible !important;
+}
+
+.ag-root-wrapper:has(.ag-cell-focus.expandable-cell) .ag-body-viewport,
+.ag-root-wrapper:has(.ag-cell-editing.expandable-cell) .ag-body-viewport {
+  overflow: visible !important;
+}
+
+.ag-root-wrapper:has(.ag-cell-focus.expandable-cell) .ag-center-cols-viewport,
+.ag-root-wrapper:has(.ag-cell-editing.expandable-cell) .ag-center-cols-viewport {
+  overflow: visible !important;
+}
+
+.ag-root-wrapper:has(.ag-cell-focus.expandable-cell) .ag-center-cols-container,
+.ag-root-wrapper:has(.ag-cell-editing.expandable-cell) .ag-center-cols-container {
+  overflow: visible !important;
+}
+
+/* Row: allow overflow and raise above sibling rows */
+.ag-row:has(.ag-cell-focus.expandable-cell),
+.ag-row:has(.ag-cell-editing.expandable-cell) {
+  overflow: visible !important;
+  z-index: 2;
+}
+
+/* Cell + its value wrapper: allow overflow */
+.ag-cell-focus.expandable-cell,
+.ag-cell-editing.expandable-cell {
+  overflow: visible !important;
+  z-index: 3;
+}
+
+.ag-cell-focus.expandable-cell .ag-cell-value,
+.ag-cell-editing.expandable-cell .ag-cell-value {
+  overflow: visible !important;
+}
+
+/* READ VIEW: expand the text wrapper as an overlay on focus */
+.ag-cell-focus.expandable-cell:not(.ag-cell-editing) .cell-text-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  min-height: 100%;
+  background: white;
+  border: 1px solid #d1d5db;
+  border-radius: 0 0 4px 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  padding: 6px 10px;
+  z-index: 10;
+}
+
+.ag-cell-focus.expandable-cell:not(.ag-cell-editing) .cell-text {
+  white-space: normal !important;
+  word-wrap: break-word;
+  overflow: visible !important;
+  text-overflow: clip !important;
+}
+
+/* EDIT VIEW: expand the editor wrapper similarly */
+.ag-cell-editing.expandable-cell .ag-cell-edit-wrapper {
+  overflow: visible !important;
+}
+
+.ag-cell-editing.expandable-cell .ag-text-field-input-wrapper,
+.ag-cell-editing.expandable-cell .expandable-editor-wrap {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  min-height: 100%;
+  background: white;
+  border: 1px solid #3b82f6;
+  border-radius: 0 0 4px 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+}

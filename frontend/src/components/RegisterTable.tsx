@@ -5,6 +5,7 @@ import type { ColDef, CellValueChangedEvent, GridReadyEvent, ICellRendererParams
 import type { Risk, CommentCount } from '../types';
 import TriangularPopover from './TriangularPopover';
 import CommentModal from './CommentModal';
+import ExpandableTextEditor from './ExpandableTextEditor';
 
 interface RegisterTableProps {
   risks: Risk[];
@@ -105,8 +106,8 @@ export default function RegisterTable({
       if (!risk) return null;
       const value = format ? format(risk) : (params.valueFormatted ?? params.value ?? '');
       return (
-        <span className="flex items-center w-full">
-          <span className="flex-1 truncate">{value}</span>
+        <span className="cell-text-wrapper flex items-center w-full">
+          <span className="cell-text flex-1 truncate">{value}</span>
           <CommentBadge riskId={risk.id} columnKey={columnKey} />
         </span>
       );
@@ -182,14 +183,17 @@ export default function RegisterTable({
       {
         field: 'title', headerName: 'Title', flex: 2, minWidth: 150, editable: !readOnly,
         cellRenderer: makeCellRenderer('title'),
+        cellClass: 'expandable-cell', cellEditor: ExpandableTextEditor,
       },
       {
         field: 'description', headerName: 'Description', flex: 2, minWidth: 120, editable: !readOnly,
         cellRenderer: makeCellRenderer('description'),
+        cellClass: 'expandable-cell', cellEditor: ExpandableTextEditor,
       },
       {
         field: 'category', headerName: 'Category', flex: 1, minWidth: 100, editable: !readOnly,
         cellRenderer: makeCellRenderer('category'),
+        cellClass: 'expandable-cell', cellEditor: ExpandableTextEditor,
       },
       {
         field: 'probability', headerName: 'Probability', width: 120, editable: !readOnly,
@@ -225,6 +229,7 @@ export default function RegisterTable({
       {
         field: 'notes', headerName: 'Notes', flex: 1, minWidth: 100, editable: !readOnly,
         cellRenderer: makeCellRenderer('notes'),
+        cellClass: 'expandable-cell', cellEditor: ExpandableTextEditor,
       },
     );
     return cols;

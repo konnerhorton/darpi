@@ -4,6 +4,7 @@ import { themeAlpine } from 'ag-grid-community';
 import type { ColDef, CellValueChangedEvent, GridReadyEvent, ICellRendererParams } from 'ag-grid-community';
 import type { Mitigation, Risk, MitigationCommentCount } from '../types';
 import CommentModal from './CommentModal';
+import ExpandableTextEditor from './ExpandableTextEditor';
 
 interface MitigationTableProps {
   mitigations: Mitigation[];
@@ -120,8 +121,8 @@ export default function MitigationTable({
       if (!mit) return null;
       const value = params.valueFormatted ?? params.value ?? '';
       return (
-        <span className="flex items-center w-full">
-          <span className="flex-1 truncate">{value}</span>
+        <span className="cell-text-wrapper flex items-center w-full">
+          <span className="cell-text flex-1 truncate">{value}</span>
           <CommentBadge mitigationId={mit.id} columnKey={columnKey} />
         </span>
       );
@@ -200,10 +201,12 @@ export default function MitigationTable({
       {
         field: 'title', headerName: 'Title', flex: 2, minWidth: 150, editable: !readOnly,
         cellRenderer: makeCellRenderer('title'),
+        cellClass: 'expandable-cell', cellEditor: ExpandableTextEditor,
       },
       {
         field: 'description', headerName: 'Description', flex: 2, minWidth: 120, editable: !readOnly,
         cellRenderer: makeCellRenderer('description'),
+        cellClass: 'expandable-cell', cellEditor: ExpandableTextEditor,
       },
       {
         headerName: 'Linked Risks', flex: 1, minWidth: 140, editable: false, sortable: false,
@@ -212,6 +215,7 @@ export default function MitigationTable({
       {
         field: 'notes', headerName: 'Notes', flex: 1, minWidth: 100, editable: !readOnly,
         cellRenderer: makeCellRenderer('notes'),
+        cellClass: 'expandable-cell', cellEditor: ExpandableTextEditor,
       },
     );
     return cols;
