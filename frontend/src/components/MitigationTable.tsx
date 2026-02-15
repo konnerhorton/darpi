@@ -16,6 +16,7 @@ interface MitigationTableProps {
   onUnlinkRisk: (mitigationId: string, riskId: string) => void;
   onNavigateToRisk: () => void;
   onRefreshCommentCounts: () => void;
+  readOnly?: boolean;
 }
 
 interface ModalState {
@@ -32,7 +33,7 @@ interface LinkPopoverState {
 export default function MitigationTable({
   mitigations, risks, commentCounts, onCellChange,
   onAddRow, onDeleteRow, onLinkRisk, onUnlinkRisk, onNavigateToRisk,
-  onRefreshCommentCounts,
+  onRefreshCommentCounts, readOnly,
 }: MitigationTableProps) {
   const gridRef = useRef<AgGridReact>(null);
   const [modal, setModal] = useState<ModalState | null>(null);
@@ -81,6 +82,7 @@ export default function MitigationTable({
     const count = countMap.get(`${mitigationId}:${columnKey}`) ?? 0;
 
     if (count === 0) {
+      if (readOnly) return null;
       return (
         <button
           onClick={(e) => {
@@ -100,6 +102,7 @@ export default function MitigationTable({
       <button
         onClick={(e) => {
           e.stopPropagation();
+          if (readOnly) return;
           const mit = mitigations.find(m => m.id === mitigationId);
           if (mit) setModal({ mitigation: mit, columnKey });
         }}
@@ -109,7 +112,7 @@ export default function MitigationTable({
         {count}
       </button>
     );
-  }, [countMap, mitigations]);
+  }, [countMap, mitigations, readOnly]);
 
   const makeCellRenderer = useCallback((columnKey: string) => {
     return (params: ICellRendererParams) => {
@@ -184,29 +187,35 @@ export default function MitigationTable({
     );
   }, [onDeleteRow]);
 
-  const columnDefs = useMemo<ColDef[]>(() => [
-    {
-      headerName: '', width: 36, editable: false, sortable: false,
-      cellRenderer: DeleteCellRenderer, suppressSizeToFit: true,
-    },
-    { field: 'display_id', headerName: 'ID', width: 80, editable: false, sortable: false, suppressSizeToFit: true },
-    {
-      field: 'title', headerName: 'Title', flex: 2, minWidth: 150, editable: true,
-      cellRenderer: makeCellRenderer('title'),
-    },
-    {
-      field: 'description', headerName: 'Description', flex: 2, minWidth: 120, editable: true,
-      cellRenderer: makeCellRenderer('description'),
-    },
-    {
-      headerName: 'Linked Risks', flex: 1, minWidth: 140, editable: false, sortable: false,
-      cellRenderer: LinkedRisksCellRenderer,
-    },
-    {
-      field: 'notes', headerName: 'Notes', flex: 1, minWidth: 100, editable: true,
-      cellRenderer: makeCellRenderer('notes'),
-    },
-  ], [DeleteCellRenderer, makeCellRenderer, LinkedRisksCellRenderer]);
+  const columnDefs = useMemo<ColDef[]>(() => {
+    const cols: ColDef[] = [];
+    if (!readOnly) {
+      cols.push({
+        headerName: '', width: 36, editable: false, sortable: false,
+        cellRenderer: DeleteCellRenderer, suppressSizeToFit: true,
+      });
+    }
+    cols.push(
+      { field: 'display_id', headerName: 'ID', width: 80, editable: false, sortable: false, suppressSizeToFit: true },
+      {
+        field: 'title', headerName: 'Title', flex: 2, minWidth: 150, editable: !readOnly,
+        cellRenderer: makeCellRenderer('title'),
+      },
+      {
+        field: 'description', headerName: 'Description', flex: 2, minWidth: 120, editable: !readOnly,
+        cellRenderer: makeCellRenderer('description'),
+      },
+      {
+        headerName: 'Linked Risks', flex: 1, minWidth: 140, editable: false, sortable: false,
+        cellRenderer: LinkedRisksCellRenderer,
+      },
+      {
+        field: 'notes', headerName: 'Notes', flex: 1, minWidth: 100, editable: !readOnly,
+        cellRenderer: makeCellRenderer('notes'),
+      },
+    );
+    return cols;
+  }, [DeleteCellRenderer, makeCellRenderer, LinkedRisksCellRenderer, readOnly]);
 
   const defaultColDef = useMemo<ColDef>(() => ({
     resizable: true,
@@ -255,14 +264,16 @@ export default function MitigationTable({
           stopEditingWhenCellsLoseFocus={true}
         />
       </div>
-      <div className="p-2 border-t border-gray-200 bg-white">
-        <button
-          onClick={onAddRow}
-          className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-        >
-          + Add Row
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="p-2 border-t border-gray-200 bg-white">
+          <button
+            onClick={onAddRow}
+            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+          >
+            + Add Row
+          </button>
+        </div>
+      )}
 
       {/* Link Risks Popover */}
       {linkPopover && (

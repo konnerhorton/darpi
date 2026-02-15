@@ -138,3 +138,48 @@ class MitigationCommentCreate(BaseModel):
     column_key: str
     author_name: str
     content: str
+
+
+# --- Snapshots ---
+
+class SnapshotCreate(BaseModel):
+    name: str
+    description: str | None = None
+
+
+class SnapshotListItem(BaseModel):
+    id: str
+    register_id: str
+    name: str
+    description: str | None
+    risk_count: int | None
+    aggregate_mean: float | None
+    aggregate_p50: float | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class SnapshotOut(BaseModel):
+    id: str
+    register_id: str
+    name: str
+    description: str | None
+    data: str
+    risk_count: int | None
+    aggregate_expected_cost: float | None
+    aggregate_mean: float | None
+    aggregate_std_dev: float | None
+    aggregate_p10: float | None
+    aggregate_p20: float | None
+    aggregate_p30: float | None
+    aggregate_p40: float | None
+    aggregate_p50: float | None
+    aggregate_p60: float | None
+    aggregate_p70: float | None
+    aggregate_p80: float | None
+    aggregate_p90: float | None
+    aggregate_p95: float | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

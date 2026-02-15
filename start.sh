@@ -87,7 +87,7 @@ cd frontend
 npm install --silent 2>&1 | tail -1
 echo "  Frontend dependencies installed ✓"
 
-npx vite build 2>&1 | tail -1
+npm run build 2>&1 | tail -1
 echo "  Frontend built ✓"
 
 cd ..

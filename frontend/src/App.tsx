@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Toolbar from './components/Toolbar';
 import RegisterTable from './components/RegisterTable';
 import MitigationTable from './components/MitigationTable';
 import AnalysisView from './components/AnalysisView';
 import * as api from './api/client';
-import type { Register, Risk, Mitigation, CommentCount, MitigationCommentCount } from './types';
+import type { Register, Risk, Mitigation, CommentCount, MitigationCommentCount, SnapshotListItem, SnapshotData } from './types';
 
 export default function App() {
   const [register, setRegister] = useState<Register | null>(null);
@@ -14,6 +14,48 @@ export default function App() {
   const [mitigationCommentCounts, setMitigationCommentCounts] = useState<MitigationCommentCount[]>([]);
   const [activeTab, setActiveTab] = useState('Register');
   const [loading, setLoading] = useState(true);
+
+  // Snapshot state
+  const [snapshots, setSnapshots] = useState<SnapshotListItem[]>([]);
+  const [activeSnapshotId, setActiveSnapshotId] = useState<string | null>(null);
+  const [snapshotData, setSnapshotData] = useState<SnapshotData | null>(null);
+
+  const isViewingSnapshot = activeSnapshotId !== null && snapshotData !== null;
+
+  // Decide which data to show: snapshot or live
+  const displayRisks = isViewingSnapshot ? snapshotData.risks : risks;
+  const displayMitigations = isViewingSnapshot ? snapshotData.mitigations : mitigations;
+  const displayCommentCounts = useMemo(() => {
+    if (!isViewingSnapshot) return commentCounts;
+    // Derive comment counts from snapshot comments for risk cells
+    const map = new Map<string, { comments: number; proposals: number }>();
+    for (const c of snapshotData.comments) {
+      if (!c.risk_id) continue;
+      const key = `${c.risk_id}:${c.column_key}`;
+      const entry = map.get(key) ?? { comments: 0, proposals: 0 };
+      entry.comments++;
+      if (c.proposed_value) entry.proposals++;
+      map.set(key, entry);
+    }
+    return Array.from(map.entries()).map(([key, v]) => {
+      const [risk_id, column_key] = key.split(':');
+      return { risk_id, column_key, comment_count: v.comments, proposal_count: v.proposals };
+    });
+  }, [isViewingSnapshot, snapshotData, commentCounts]);
+
+  const displayMitigationCommentCounts = useMemo(() => {
+    if (!isViewingSnapshot) return mitigationCommentCounts;
+    const map = new Map<string, number>();
+    for (const c of snapshotData.comments) {
+      if (!c.mitigation_id) continue;
+      const key = `${c.mitigation_id}:${c.column_key}`;
+      map.set(key, (map.get(key) ?? 0) + 1);
+    }
+    return Array.from(map.entries()).map(([key, count]) => {
+      const [mitigation_id, column_key] = key.split(':');
+      return { mitigation_id, column_key, comment_count: count };
+    });
+  }, [isViewingSnapshot, snapshotData, mitigationCommentCounts]);
 
   const refreshCommentCounts = useCallback(async () => {
     if (!register) return;
@@ -39,16 +81,18 @@ export default function App() {
           reg = await api.createRegister('New Risk Register');
         }
         setRegister(reg);
-        const [riskData, counts, mitData, mitCounts] = await Promise.all([
+        const [riskData, counts, mitData, mitCounts, snapshotList] = await Promise.all([
           api.listRisks(reg.id),
           api.getCommentCounts(reg.id),
           api.listMitigations(reg.id),
           api.getMitigationCommentCounts(reg.id),
+          api.listSnapshots(reg.id),
         ]);
         setRisks(riskData);
         setCommentCounts(counts);
         setMitigations(mitData);
         setMitigationCommentCounts(mitCounts);
+        setSnapshots(snapshotList);
       } catch (err) {
         console.error('Failed to load register:', err);
       } finally {
@@ -209,6 +253,52 @@ export default function App() {
     setActiveTab('Register');
   }, []);
 
+  // --- Snapshot handlers ---
+
+  const handleSaveSnapshot = useCallback(async () => {
+    if (!register) return;
+    const name = window.prompt('Snapshot name:');
+    if (!name?.trim()) return;
+    try {
+      await api.createSnapshot(register.id, { name: name.trim() });
+      const list = await api.listSnapshots(register.id);
+      setSnapshots(list);
+    } catch (err) {
+      console.error('Failed to save snapshot:', err);
+    }
+  }, [register]);
+
+  const handleSelectSnapshot = useCallback(async (id: string | null) => {
+    if (!id) {
+      setActiveSnapshotId(null);
+      setSnapshotData(null);
+      return;
+    }
+    try {
+      const snapshot = await api.getSnapshot(id);
+      const parsed: SnapshotData = JSON.parse(snapshot.data);
+      setActiveSnapshotId(id);
+      setSnapshotData(parsed);
+    } catch (err) {
+      console.error('Failed to load snapshot:', err);
+    }
+  }, []);
+
+  const handleDeleteSnapshot = useCallback(async (id: string) => {
+    if (!register) return;
+    try {
+      await api.deleteSnapshot(id);
+      const list = await api.listSnapshots(register.id);
+      setSnapshots(list);
+      if (activeSnapshotId === id) {
+        setActiveSnapshotId(null);
+        setSnapshotData(null);
+      }
+    } catch (err) {
+      console.error('Failed to delete snapshot:', err);
+    }
+  }, [register, activeSnapshotId]);
+
   if (loading) {
     return <div className="flex items-center justify-center h-full text-gray-500">Loading...</div>;
   }
@@ -224,12 +314,17 @@ export default function App() {
         onNameChange={handleNameChange}
         activeTab={activeTab}
         onTabChange={setActiveTab}
+        snapshots={snapshots}
+        activeSnapshotId={activeSnapshotId}
+        onSaveSnapshot={handleSaveSnapshot}
+        onSelectSnapshot={handleSelectSnapshot}
+        onDeleteSnapshot={handleDeleteSnapshot}
       />
       <div className="flex-1 overflow-hidden">
         {activeTab === 'Register' && (
           <RegisterTable
-            risks={risks}
-            commentCounts={commentCounts}
+            risks={displayRisks}
+            commentCounts={displayCommentCounts}
             onCellChange={handleCellChange}
             onTriangularChange={handleTriangularChange}
             onClearTriangular={handleClearTriangular}
@@ -237,13 +332,14 @@ export default function App() {
             onDeleteRow={handleDeleteRow}
             onRiskUpdated={handleRiskUpdated}
             onRefreshCommentCounts={refreshCommentCounts}
+            readOnly={isViewingSnapshot}
           />
         )}
         {activeTab === 'Mitigations' && (
           <MitigationTable
-            mitigations={mitigations}
-            risks={risks}
-            commentCounts={mitigationCommentCounts}
+            mitigations={displayMitigations}
+            risks={displayRisks}
+            commentCounts={displayMitigationCommentCounts}
             onCellChange={handleMitigationCellChange}
             onAddRow={handleAddMitigation}
             onDeleteRow={handleDeleteMitigation}
@@ -251,6 +347,7 @@ export default function App() {
             onUnlinkRisk={handleUnlinkRisk}
             onNavigateToRisk={handleNavigateToRisk}
             onRefreshCommentCounts={refreshMitigationCommentCounts}
+            readOnly={isViewingSnapshot}
           />
         )}
         {activeTab === 'Analysis' && (

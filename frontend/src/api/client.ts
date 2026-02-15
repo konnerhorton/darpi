@@ -1,5 +1,5 @@
 import axios from 'axios';
-import type { Register, Risk, Mitigation, CellComment, CommentCount, MitigationCommentCount } from '../types';
+import type { Register, Risk, Mitigation, CellComment, CommentCount, MitigationCommentCount, SnapshotListItem, Snapshot } from '../types';
 
 const api = axios.create({ baseURL: '/api/v1' });
 
@@ -89,3 +89,16 @@ export const runMonteCarlo = (registerId: string, iterations?: number) =>
 
 export const getAnalysisSummary = (registerId: string) =>
   api.get(`/registers/${registerId}/analysis/summary`).then(r => r.data);
+
+// Snapshots
+export const listSnapshots = (registerId: string) =>
+  api.get<SnapshotListItem[]>(`/registers/${registerId}/snapshots`).then(r => r.data);
+
+export const createSnapshot = (registerId: string, data: { name: string; description?: string }) =>
+  api.post<Snapshot>(`/registers/${registerId}/snapshots`, data).then(r => r.data);
+
+export const getSnapshot = (id: string) =>
+  api.get<Snapshot>(`/snapshots/${id}`).then(r => r.data);
+
+export const deleteSnapshot = (id: string) =>
+  api.delete(`/snapshots/${id}`);

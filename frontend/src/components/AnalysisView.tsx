@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import Plot from 'react-plotly.js';
+import createPlotlyComponent from 'react-plotly.js/factory';
+import Plotly from 'plotly.js-basic-dist-min';
+
+const Plot = createPlotlyComponent(Plotly);
 import * as api from '../api/client';
 import type { MonteCarloResult } from '../types';
 

@@ -26,7 +26,8 @@ export interface Risk {
 
 export interface CellComment {
   id: string;
-  risk_id: string;
+  risk_id: string | null;
+  mitigation_id?: string | null;
   column_key: string;
   author_name: string;
   content: string;
@@ -59,6 +60,38 @@ export interface MitigationCommentCount {
   mitigation_id: string;
   column_key: string;
   comment_count: number;
+}
+
+export interface SnapshotListItem {
+  id: string;
+  register_id: string;
+  name: string;
+  description: string | null;
+  risk_count: number | null;
+  aggregate_mean: number | null;
+  aggregate_p50: number | null;
+  created_at: string;
+}
+
+export interface Snapshot extends SnapshotListItem {
+  data: string;
+  aggregate_expected_cost: number | null;
+  aggregate_std_dev: number | null;
+  aggregate_p10: number | null;
+  aggregate_p20: number | null;
+  aggregate_p30: number | null;
+  aggregate_p40: number | null;
+  aggregate_p60: number | null;
+  aggregate_p70: number | null;
+  aggregate_p80: number | null;
+  aggregate_p90: number | null;
+  aggregate_p95: number | null;
+}
+
+export interface SnapshotData {
+  risks: Risk[];
+  mitigations: Mitigation[];
+  comments: CellComment[];
 }
 
 export interface MonteCarloResult {

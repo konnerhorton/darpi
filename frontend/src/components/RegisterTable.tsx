@@ -16,6 +16,7 @@ interface RegisterTableProps {
   onDeleteRow: (riskId: string) => void;
   onRiskUpdated: (risk: Risk) => void;
   onRefreshCommentCounts: () => void;
+  readOnly?: boolean;
 }
 
 const formatCurrency = (value: number | null) => {
@@ -38,7 +39,7 @@ interface ModalState {
 
 export default function RegisterTable({
   risks, commentCounts, onCellChange, onTriangularChange, onClearTriangular,
-  onAddRow, onDeleteRow, onRiskUpdated, onRefreshCommentCounts,
+  onAddRow, onDeleteRow, onRiskUpdated, onRefreshCommentCounts, readOnly,
 }: RegisterTableProps) {
   const gridRef = useRef<AgGridReact>(null);
   const [popover, setPopover] = useState<PopoverState | null>(null);
@@ -60,6 +61,7 @@ export default function RegisterTable({
     const hasProposals = counts && counts.proposals > 0;
 
     if (!hasComments) {
+      if (readOnly) return null;
       // No comments — show trigger that appears on cell hover via CSS
       return (
         <button
@@ -80,6 +82,7 @@ export default function RegisterTable({
       <button
         onClick={(e) => {
           e.stopPropagation();
+          if (readOnly) return;
           const risk = risks.find(r => r.id === riskId);
           if (risk) setModal({ risk, columnKey });
         }}
@@ -93,7 +96,7 @@ export default function RegisterTable({
         {hasProposals ? counts.proposals : counts.comments}
       </button>
     );
-  }, [countMap, risks]);
+  }, [countMap, risks, readOnly]);
 
   // Generic cell renderer with comment badge
   const makeCellRenderer = useCallback((columnKey: string, format?: (risk: Risk) => string) => {
@@ -166,60 +169,66 @@ export default function RegisterTable({
     );
   }, [onDeleteRow]);
 
-  const columnDefs = useMemo<ColDef[]>(() => [
-    {
-      headerName: '', width: 36, editable: false, sortable: false,
-      cellRenderer: DeleteCellRenderer, suppressSizeToFit: true,
-    },
-    { field: 'display_id', headerName: 'ID', width: 80, editable: false, sortable: false, suppressSizeToFit: true },
-    {
-      field: 'title', headerName: 'Title', flex: 2, minWidth: 150, editable: true,
-      cellRenderer: makeCellRenderer('title'),
-    },
-    {
-      field: 'description', headerName: 'Description', flex: 2, minWidth: 120, editable: true,
-      cellRenderer: makeCellRenderer('description'),
-    },
-    {
-      field: 'category', headerName: 'Category', flex: 1, minWidth: 100, editable: true,
-      cellRenderer: makeCellRenderer('category'),
-    },
-    {
-      field: 'probability', headerName: 'Probability', width: 120, editable: true,
-      type: 'numericColumn',
-      cellRenderer: makeCellRenderer('probability', (r) => r.probability != null ? `${r.probability}%` : ''),
-      valueSetter: (params) => {
-        const val = parseFloat(params.newValue);
-        if (isNaN(val) || val < 0 || val > 100) return false;
-        params.data.probability = val;
-        return true;
+  const columnDefs = useMemo<ColDef[]>(() => {
+    const cols: ColDef[] = [];
+    if (!readOnly) {
+      cols.push({
+        headerName: '', width: 36, editable: false, sortable: false,
+        cellRenderer: DeleteCellRenderer, suppressSizeToFit: true,
+      });
+    }
+    cols.push(
+      { field: 'display_id', headerName: 'ID', width: 80, editable: false, sortable: false, suppressSizeToFit: true },
+      {
+        field: 'title', headerName: 'Title', flex: 2, minWidth: 150, editable: !readOnly,
+        cellRenderer: makeCellRenderer('title'),
       },
-    },
-    {
-      headerName: 'Cost', width: 160, editable: true,
-      type: 'numericColumn',
-      cellRenderer: CostCellRenderer,
-      valueGetter: (params) => {
-        const d = params.data as Risk;
-        if (d.cost_min != null) return d.cost_expected;
-        return d.cost_single;
+      {
+        field: 'description', headerName: 'Description', flex: 2, minWidth: 120, editable: !readOnly,
+        cellRenderer: makeCellRenderer('description'),
       },
-      valueSetter: (params) => {
-        const raw = String(params.newValue).replace(/[$,]/g, '');
-        const val = parseFloat(raw);
-        if (isNaN(val) || val < 0) return false;
-        params.data.cost_single = val;
-        params.data.cost_min = null;
-        params.data.cost_expected = null;
-        params.data.cost_max = null;
-        return true;
+      {
+        field: 'category', headerName: 'Category', flex: 1, minWidth: 100, editable: !readOnly,
+        cellRenderer: makeCellRenderer('category'),
       },
-    },
-    {
-      field: 'notes', headerName: 'Notes', flex: 1, minWidth: 100, editable: true,
-      cellRenderer: makeCellRenderer('notes'),
-    },
-  ], [CostCellRenderer, makeCellRenderer]);
+      {
+        field: 'probability', headerName: 'Probability', width: 120, editable: !readOnly,
+        type: 'numericColumn',
+        cellRenderer: makeCellRenderer('probability', (r) => r.probability != null ? `${r.probability}%` : ''),
+        valueSetter: (params) => {
+          const val = parseFloat(params.newValue);
+          if (isNaN(val) || val < 0 || val > 100) return false;
+          params.data.probability = val;
+          return true;
+        },
+      },
+      {
+        headerName: 'Cost', width: 160, editable: !readOnly,
+        type: 'numericColumn',
+        cellRenderer: CostCellRenderer,
+        valueGetter: (params) => {
+          const d = params.data as Risk;
+          if (d.cost_min != null) return d.cost_expected;
+          return d.cost_single;
+        },
+        valueSetter: (params) => {
+          const raw = String(params.newValue).replace(/[$,]/g, '');
+          const val = parseFloat(raw);
+          if (isNaN(val) || val < 0) return false;
+          params.data.cost_single = val;
+          params.data.cost_min = null;
+          params.data.cost_expected = null;
+          params.data.cost_max = null;
+          return true;
+        },
+      },
+      {
+        field: 'notes', headerName: 'Notes', flex: 1, minWidth: 100, editable: !readOnly,
+        cellRenderer: makeCellRenderer('notes'),
+      },
+    );
+    return cols;
+  }, [CostCellRenderer, makeCellRenderer, readOnly, DeleteCellRenderer]);
 
   const defaultColDef = useMemo<ColDef>(() => ({
     resizable: true,
@@ -280,16 +289,18 @@ export default function RegisterTable({
           stopEditingWhenCellsLoseFocus={true}
         />
       </div>
-      <div className="p-2 border-t border-gray-200 bg-white">
-        <button
-          onClick={onAddRow}
-          className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-        >
-          + Add Row
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="p-2 border-t border-gray-200 bg-white">
+          <button
+            onClick={onAddRow}
+            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+          >
+            + Add Row
+          </button>
+        </div>
+      )}
 
-      {popover && (
+      {popover && !readOnly && (
         <TriangularPopover
           costMin={popover.costMin}
           costExpected={popover.costExpected}
