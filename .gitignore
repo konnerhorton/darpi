@@ -14,5 +14,8 @@ dist/
 .vscode/
 .idea/
 
+# Claude Code
+.claude/
+
 # OS
 .DS_Store
