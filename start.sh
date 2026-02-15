@@ -13,6 +13,7 @@ check_cmd() {
 
 check_cmd python3
 check_cmd npm
+check_cmd uv
 
 PYTHON_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
 if python3 -c "import sys; exit(0 if sys.version_info >= (3, 12) else 1)" 2>/dev/null; then
@@ -27,13 +28,10 @@ echo ""
 echo "Setting up backend..."
 cd backend
 
-if [ ! -d ".venv" ]; then
-  python3 -m venv .venv
-  echo "  Created virtual environment"
-fi
+deactivate 2>/dev/null || true
+uv sync
 source .venv/bin/activate
 
-pip install -q -e . 2>&1 | tail -1
 echo "  Backend dependencies installed ✓"
 
 cd ..
