@@ -38,7 +38,7 @@ risk/
 │   └── pyproject.toml
 ├── frontend/
 │   ├── src/
-│   │   ├── components/       # RegisterTable, MitigationTable, CommentModal, AnalysisView, MonteCarloChart, SnapshotBar, Toolbar
+│   │   ├── components/       # RegisterTable, MitigationTable, CommentModal, AnalysisView, MonteCarloChart, SnapshotBar, Toolbar, ExpandableTextEditor
 │   │   ├── api/              # API client functions
 │   │   ├── hooks/            # React data-fetching hooks
 │   │   ├── types/            # TypeScript interfaces
@@ -91,3 +91,4 @@ NOT building (yet): custom columns (Airtable-style single-select), detail card s
 - AG Grid cells with comments/proposals show badge indicators via custom cell renderers.
 - Comments open in a modal dialog, not a sidebar. No detail card in the prototype.
 - Register name is editable inline in the toolbar — no settings panel.
+- Text columns (title, description, category, notes) use `ExpandableTextEditor` — cells expand as an overlay on focus/edit so long text is visible without resizing the row. Uses CSS `:has()` selectors to unclip AG Grid's overflow-hidden ancestors. The `expandable-cell` class on the column triggers this behavior.

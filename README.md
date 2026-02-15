@@ -1,4 +1,5 @@
-## run and view
+# DARPI
 
-Treminal 1 -> `cd backend && uv run uvicorn app.main:app --port 8000`
-Terminal 2 -> `cd frontend && npm run dev`
+**Don't Accept Risk, Price It!**
+
+A risk register an analysis tool to facilitate register development and quantification through a collaborative process.
