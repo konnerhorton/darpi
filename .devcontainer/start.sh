@@ -20,8 +20,9 @@ for i in $(seq 1 30); do
   sleep 0.5
 done
 
-# Seed 10-risk workflow demo (only if DB is missing or tiny)
-if [ ! -f backend/darpi.db ] || [ "$(stat -c%s backend/darpi.db 2>/dev/null)" -lt 1000 ]; then
+# Seed 10-risk workflow demo if no registers exist yet
+REGISTER_COUNT=$(curl -sf http://localhost:8000/api/v1/registers | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "0")
+if [ "$REGISTER_COUNT" = "0" ]; then
   echo "Seeding workflow demo (10 risks)..."
   python3 backend/seed.py
 fi
