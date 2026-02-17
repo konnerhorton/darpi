@@ -79,8 +79,10 @@ async def create_mitigation(register_id: str, body: MitigationCreate, db: AsyncS
     )
     db.add(mitigation)
     await db.commit()
-    await db.refresh(mitigation, ["risk_mitigations"])
-    return _mitigation_to_out(mitigation)
+    result = await db.execute(
+        select(Mitigation).where(Mitigation.id == mitigation.id).options(selectinload(Mitigation.risk_mitigations))
+    )
+    return _mitigation_to_out(result.scalar_one())
 
 
 @router.patch("/mitigations/{mitigation_id}", response_model=MitigationOut)
@@ -91,8 +93,10 @@ async def update_mitigation(mitigation_id: str, body: MitigationUpdate, db: Asyn
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(mitigation, field, value)
     await db.commit()
-    await db.refresh(mitigation, ["risk_mitigations"])
-    return _mitigation_to_out(mitigation)
+    result = await db.execute(
+        select(Mitigation).where(Mitigation.id == mitigation.id).options(selectinload(Mitigation.risk_mitigations))
+    )
+    return _mitigation_to_out(result.scalar_one())
 
 
 @router.delete("/mitigations/{mitigation_id}", status_code=204)

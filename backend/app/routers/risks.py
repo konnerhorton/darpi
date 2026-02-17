@@ -83,8 +83,10 @@ async def create_risk(register_id: str, body: RiskCreate, db: AsyncSession = Dep
     )
     db.add(risk)
     await db.commit()
-    await db.refresh(risk, ["risk_mitigations"])
-    return _risk_to_out(risk)
+    result = await db.execute(
+        select(Risk).where(Risk.id == risk.id).options(selectinload(Risk.risk_mitigations))
+    )
+    return _risk_to_out(result.scalar_one())
 
 
 @router.patch("/risks/{risk_id}", response_model=RiskOut)
@@ -95,8 +97,10 @@ async def update_risk(risk_id: str, body: RiskUpdate, db: AsyncSession = Depends
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(risk, field, value)
     await db.commit()
-    await db.refresh(risk, ["risk_mitigations"])
-    return _risk_to_out(risk)
+    result = await db.execute(
+        select(Risk).where(Risk.id == risk.id).options(selectinload(Risk.risk_mitigations))
+    )
+    return _risk_to_out(result.scalar_one())
 
 
 @router.delete("/risks/{risk_id}", status_code=204)
