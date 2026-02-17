@@ -44,8 +44,9 @@ if [ -f "$DB_FILE" ]; then
   echo "Existing database found."
   echo "  1) Keep existing data"
   echo "  2) Start fresh (empty)"
-  echo "  3) Start fresh with demo data"
-  read -rp "  Choose [1/2/3]: " db_choice
+  echo "  3) Demo data (10 risks — workflow walkthrough)"
+  echo "  4) Demo data (200 risks — transit mega-project)"
+  read -rp "  Choose [1/2/3/4]: " db_choice
   case "$db_choice" in
     2)
       rm "$DB_FILE"
@@ -53,8 +54,13 @@ if [ -f "$DB_FILE" ]; then
       ;;
     3)
       rm "$DB_FILE"
-      SEED_MODE=1
-      echo "  Database deleted — will seed demo data"
+      SEED_MODE=small
+      echo "  Database deleted — will seed workflow demo"
+      ;;
+    4)
+      rm "$DB_FILE"
+      SEED_MODE=large
+      echo "  Database deleted — will seed transit mega-project"
       ;;
     *)
       echo "  Keeping existing database ✓"
@@ -64,12 +70,17 @@ else
   echo ""
   echo "No database found."
   echo "  1) Start empty"
-  echo "  2) Start with demo data"
-  read -rp "  Choose [1/2]: " db_choice
+  echo "  2) Demo data (10 risks — workflow walkthrough)"
+  echo "  3) Demo data (200 risks — transit mega-project)"
+  read -rp "  Choose [1/2/3]: " db_choice
   case "$db_choice" in
     2)
-      SEED_MODE=1
-      echo "  Will seed demo data after launch"
+      SEED_MODE=small
+      echo "  Will seed workflow demo after launch"
+      ;;
+    3)
+      SEED_MODE=large
+      echo "  Will seed transit mega-project after launch"
       ;;
     *)
       echo "  Starting empty"
@@ -98,7 +109,7 @@ echo "  Press Ctrl+C to stop"
 echo "═══════════════════════════════════════════════════"
 echo ""
 
-if [ "$SEED_MODE" = "1" ]; then
+if [ -n "$SEED_MODE" ]; then
   # Start server in background, run seed, then foreground the server
   cd backend
   uvicorn app.main:app --host 127.0.0.1 --port 8000 &
@@ -113,8 +124,13 @@ if [ "$SEED_MODE" = "1" ]; then
     sleep 0.2
   done
 
-  echo "Seeding demo data..."
-  python3 backend/seed.py
+  if [ "$SEED_MODE" = "small" ]; then
+    echo "Seeding workflow demo (10 risks)..."
+    python3 backend/seed.py
+  else
+    echo "Seeding transit mega-project (200 risks)..."
+    python3 backend/seed_transit.py
+  fi
   echo ""
 
   # Foreground the server so Ctrl+C works
