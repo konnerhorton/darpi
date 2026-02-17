@@ -1,12 +1,34 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.database import get_session
 from app.models import Register, Risk
 from app.schemas import ReorderRequest, RiskCreate, RiskOut, RiskUpdate
 
 router = APIRouter(tags=["risks"])
+
+
+def _risk_to_out(r: Risk) -> RiskOut:
+    return RiskOut(
+        id=r.id,
+        register_id=r.register_id,
+        display_id=r.display_id,
+        title=r.title,
+        description=r.description,
+        category=r.category,
+        probability=r.probability,
+        cost_single=r.cost_single,
+        cost_min=r.cost_min,
+        cost_expected=r.cost_expected,
+        cost_max=r.cost_max,
+        notes=r.notes,
+        sort_order=r.sort_order,
+        created_at=r.created_at,
+        updated_at=r.updated_at,
+        linked_mitigation_ids=[rm.mitigation_id for rm in r.risk_mitigations],
+    )
 
 
 async def _next_display_id(db: AsyncSession, register_id: str) -> str:
@@ -26,9 +48,12 @@ async def list_risks(register_id: str, db: AsyncSession = Depends(get_session)):
     if not reg:
         raise HTTPException(404, "Register not found")
     result = await db.execute(
-        select(Risk).where(Risk.register_id == register_id).order_by(Risk.sort_order, Risk.created_at)
+        select(Risk)
+        .where(Risk.register_id == register_id)
+        .options(selectinload(Risk.risk_mitigations))
+        .order_by(Risk.sort_order, Risk.created_at)
     )
-    return result.scalars().all()
+    return [_risk_to_out(r) for r in result.scalars().all()]
 
 
 @router.post("/registers/{register_id}/risks", response_model=RiskOut, status_code=201)
@@ -58,8 +83,8 @@ async def create_risk(register_id: str, body: RiskCreate, db: AsyncSession = Dep
     )
     db.add(risk)
     await db.commit()
-    await db.refresh(risk)
-    return risk
+    await db.refresh(risk, ["risk_mitigations"])
+    return _risk_to_out(risk)
 
 
 @router.patch("/risks/{risk_id}", response_model=RiskOut)
@@ -70,8 +95,8 @@ async def update_risk(risk_id: str, body: RiskUpdate, db: AsyncSession = Depends
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(risk, field, value)
     await db.commit()
-    await db.refresh(risk)
-    return risk
+    await db.refresh(risk, ["risk_mitigations"])
+    return _risk_to_out(risk)
 
 
 @router.delete("/risks/{risk_id}", status_code=204)
@@ -94,6 +119,9 @@ async def reorder_risks(register_id: str, body: ReorderRequest, db: AsyncSession
             risk.sort_order = item.sort_order
     await db.commit()
     result = await db.execute(
-        select(Risk).where(Risk.register_id == register_id).order_by(Risk.sort_order, Risk.created_at)
+        select(Risk)
+        .where(Risk.register_id == register_id)
+        .options(selectinload(Risk.risk_mitigations))
+        .order_by(Risk.sort_order, Risk.created_at)
     )
-    return result.scalars().all()
+    return [_risk_to_out(r) for r in result.scalars().all()]

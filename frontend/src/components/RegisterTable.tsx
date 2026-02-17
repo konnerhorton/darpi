@@ -1,8 +1,8 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import { AgGridReact } from 'ag-grid-react';
 import { themeAlpine } from 'ag-grid-community';
 import type { ColDef, CellValueChangedEvent, GridReadyEvent, ICellRendererParams } from 'ag-grid-community';
-import type { Risk, CommentCount } from '../types';
+import type { Risk, CommentCount, Mitigation } from '../types';
 import TriangularPopover from './TriangularPopover';
 import CommentModal from './CommentModal';
 import ExpandableTextEditor from './ExpandableTextEditor';
@@ -10,6 +10,7 @@ import ExpandableTextEditor from './ExpandableTextEditor';
 interface RegisterTableProps {
   risks: Risk[];
   commentCounts: CommentCount[];
+  mitigations: Mitigation[];
   onCellChange: (riskId: string, field: string, value: unknown) => void;
   onTriangularChange: (riskId: string, min: number, expected: number, max: number) => void;
   onClearTriangular: (riskId: string, singleValue: number) => void;
@@ -17,6 +18,9 @@ interface RegisterTableProps {
   onDeleteRow: (riskId: string) => void;
   onRiskUpdated: (risk: Risk) => void;
   onRefreshCommentCounts: () => void;
+  onLinkMitigation: (riskId: string, mitigationId: string) => void;
+  onUnlinkMitigation: (riskId: string, mitigationId: string) => void;
+  onNavigateToMitigation: () => void;
   readOnly?: boolean;
 }
 
@@ -38,13 +42,52 @@ interface ModalState {
   columnKey: string;
 }
 
+interface LinkMitigationPopoverState {
+  riskId: string;
+  linkedMitigationIds: string[];
+  anchorRect: DOMRect;
+}
+
 export default function RegisterTable({
-  risks, commentCounts, onCellChange, onTriangularChange, onClearTriangular,
-  onAddRow, onDeleteRow, onRiskUpdated, onRefreshCommentCounts, readOnly,
+  risks, commentCounts, mitigations, onCellChange, onTriangularChange, onClearTriangular,
+  onAddRow, onDeleteRow, onRiskUpdated, onRefreshCommentCounts,
+  onLinkMitigation, onUnlinkMitigation, onNavigateToMitigation, readOnly,
 }: RegisterTableProps) {
   const gridRef = useRef<AgGridReact>(null);
   const [popover, setPopover] = useState<PopoverState | null>(null);
   const [modal, setModal] = useState<ModalState | null>(null);
+  const [linkMitPopover, setLinkMitPopover] = useState<LinkMitigationPopoverState | null>(null);
+  const [mitSearchFilter, setMitSearchFilter] = useState('');
+  const mitPopoverRef = useRef<HTMLDivElement>(null);
+
+  // Close mitigation link popover on outside click
+  useEffect(() => {
+    if (!linkMitPopover) return;
+    const handleClick = (e: MouseEvent) => {
+      if (mitPopoverRef.current && !mitPopoverRef.current.contains(e.target as Node)) {
+        setLinkMitPopover(null);
+        setMitSearchFilter('');
+      }
+    };
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setLinkMitPopover(null);
+        setMitSearchFilter('');
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [linkMitPopover]);
+
+  const mitigationLookup = useMemo(() => {
+    const map = new Map<string, Mitigation>();
+    for (const m of mitigations) map.set(m.id, m);
+    return map;
+  }, [mitigations]);
 
   // Build a lookup for comment counts: "riskId:columnKey" -> { comments, proposals }
   const countMap = useMemo(() => {
@@ -156,6 +199,52 @@ export default function RegisterTable({
     );
   }, [CommentBadge]);
 
+  const LinkedMitigationsCellRenderer = useCallback((params: ICellRendererParams) => {
+    const risk = params.data as Risk;
+    if (!risk) return null;
+
+    const handleCellClick = (e: React.MouseEvent) => {
+      if (readOnly) return;
+      const cell = (e.target as HTMLElement).closest('.ag-cell');
+      if (!cell) return;
+      const rect = cell.getBoundingClientRect();
+      setLinkMitPopover({
+        riskId: risk.id,
+        linkedMitigationIds: risk.linked_mitigation_ids,
+        anchorRect: rect,
+      });
+      setMitSearchFilter('');
+    };
+
+    return (
+      <span className="flex items-center gap-1 w-full cursor-pointer" onClick={handleCellClick}>
+        {risk.linked_mitigation_ids.length === 0 ? (
+          <span className="text-gray-400 text-sm">{readOnly ? '' : 'Click to link mitigations...'}</span>
+        ) : (
+          <span className="flex items-center gap-1 flex-wrap">
+            {risk.linked_mitigation_ids.map(mitId => {
+              const mit = mitigationLookup.get(mitId);
+              if (!mit) return null;
+              return (
+                <span
+                  key={mitId}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onNavigateToMitigation();
+                  }}
+                  className="inline-flex items-center px-1.5 py-0.5 rounded text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 cursor-pointer"
+                  title={mit.title}
+                >
+                  {mit.display_id}
+                </span>
+              );
+            })}
+          </span>
+        )}
+      </span>
+    );
+  }, [mitigationLookup, onNavigateToMitigation, readOnly]);
+
   const DeleteCellRenderer = useCallback((params: ICellRendererParams) => {
     const risk = params.data as Risk;
     if (!risk) return null;
@@ -227,13 +316,17 @@ export default function RegisterTable({
         },
       },
       {
+        headerName: 'Linked Mitigations', flex: 1, minWidth: 140, editable: false, sortable: false,
+        cellRenderer: LinkedMitigationsCellRenderer,
+      },
+      {
         field: 'notes', headerName: 'Notes', flex: 1, minWidth: 100, editable: !readOnly,
         cellRenderer: makeCellRenderer('notes'),
         cellClass: 'expandable-cell', cellEditor: ExpandableTextEditor,
       },
     );
     return cols;
-  }, [CostCellRenderer, makeCellRenderer, readOnly, DeleteCellRenderer]);
+  }, [CostCellRenderer, makeCellRenderer, readOnly, DeleteCellRenderer, LinkedMitigationsCellRenderer]);
 
   const defaultColDef = useMemo<ColDef>(() => ({
     resizable: true,
@@ -272,6 +365,14 @@ export default function RegisterTable({
     setModal(null);
     onRefreshCommentCounts();
   }, [onRefreshCommentCounts]);
+
+  const filteredMitigations = useMemo(() => {
+    if (!mitSearchFilter) return mitigations;
+    const q = mitSearchFilter.toLowerCase();
+    return mitigations.filter(m =>
+      m.display_id.toLowerCase().includes(q) || m.title.toLowerCase().includes(q)
+    );
+  }, [mitigations, mitSearchFilter]);
 
   const handleModalRiskUpdated = useCallback((updatedRisk: Risk) => {
     onRiskUpdated(updatedRisk);
@@ -315,6 +416,66 @@ export default function RegisterTable({
           onClear={handlePopoverClear}
           onClose={() => setPopover(null)}
         />
+      )}
+
+      {/* Link Mitigations Popover */}
+      {linkMitPopover && !readOnly && (
+        <div
+          ref={mitPopoverRef}
+          className="fixed bg-white rounded-lg shadow-xl border border-gray-200 w-[280px] z-40"
+          style={{
+            top: Math.min(linkMitPopover.anchorRect.bottom + 4, window.innerHeight - 320),
+            left: Math.min(linkMitPopover.anchorRect.left, window.innerWidth - 300),
+          }}
+        >
+          <div className="p-2 border-b border-gray-100">
+            <input
+              autoFocus
+              value={mitSearchFilter}
+              onChange={e => setMitSearchFilter(e.target.value)}
+              placeholder="Search mitigations..."
+              className="w-full border border-gray-300 rounded px-2 py-1 text-sm"
+            />
+          </div>
+          <div className="max-h-[240px] overflow-y-auto p-1">
+            {filteredMitigations.length === 0 ? (
+              <div className="text-gray-400 text-sm p-2">No mitigations found</div>
+            ) : (
+              filteredMitigations.map(mit => {
+                const isLinked = linkMitPopover.linkedMitigationIds.includes(mit.id);
+                return (
+                  <label
+                    key={mit.id}
+                    className="flex items-center gap-2 px-2 py-1.5 hover:bg-gray-50 rounded cursor-pointer text-sm"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isLinked}
+                      onChange={() => {
+                        if (isLinked) {
+                          onUnlinkMitigation(linkMitPopover.riskId, mit.id);
+                          setLinkMitPopover(prev => prev ? {
+                            ...prev,
+                            linkedMitigationIds: prev.linkedMitigationIds.filter(id => id !== mit.id),
+                          } : null);
+                        } else {
+                          onLinkMitigation(linkMitPopover.riskId, mit.id);
+                          setLinkMitPopover(prev => prev ? {
+                            ...prev,
+                            linkedMitigationIds: [...prev.linkedMitigationIds, mit.id],
+                          } : null);
+                        }
+                      }}
+                      className="rounded"
+                    />
+                    <span className="text-gray-500 font-mono text-xs">{mit.display_id}</span>
+                    <span className="truncate">{mit.title || '(untitled)'}</span>
+                  </label>
+                );
+              })
+            )}
+          </div>
+        </div>
       )}
 
       {modal && (

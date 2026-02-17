@@ -253,6 +253,54 @@ export default function App() {
     setActiveTab('Register');
   }, []);
 
+  const handleNavigateToMitigation = useCallback(() => {
+    setActiveTab('Mitigations');
+  }, []);
+
+  const handleLinkMitigationFromRisk = useCallback(async (riskId: string, mitigationId: string) => {
+    // Optimistic update on risks
+    setRisks(prev => prev.map(r =>
+      r.id === riskId ? { ...r, linked_mitigation_ids: [...r.linked_mitigation_ids, mitigationId] } : r
+    ));
+    // Also update mitigations state to keep linked_risk_ids in sync
+    setMitigations(prev => prev.map(m =>
+      m.id === mitigationId ? { ...m, linked_risk_ids: [...m.linked_risk_ids, riskId] } : m
+    ));
+    try {
+      await api.linkRisk(mitigationId, riskId);
+    } catch {
+      if (register) {
+        const [freshRisks, freshMits] = await Promise.all([
+          api.listRisks(register.id),
+          api.listMitigations(register.id),
+        ]);
+        setRisks(freshRisks);
+        setMitigations(freshMits);
+      }
+    }
+  }, [register]);
+
+  const handleUnlinkMitigationFromRisk = useCallback(async (riskId: string, mitigationId: string) => {
+    setRisks(prev => prev.map(r =>
+      r.id === riskId ? { ...r, linked_mitigation_ids: r.linked_mitigation_ids.filter(id => id !== mitigationId) } : r
+    ));
+    setMitigations(prev => prev.map(m =>
+      m.id === mitigationId ? { ...m, linked_risk_ids: m.linked_risk_ids.filter(id => id !== riskId) } : m
+    ));
+    try {
+      await api.unlinkRisk(mitigationId, riskId);
+    } catch {
+      if (register) {
+        const [freshRisks, freshMits] = await Promise.all([
+          api.listRisks(register.id),
+          api.listMitigations(register.id),
+        ]);
+        setRisks(freshRisks);
+        setMitigations(freshMits);
+      }
+    }
+  }, [register]);
+
   // --- Snapshot handlers ---
 
   const handleSaveSnapshot = useCallback(async () => {
@@ -325,6 +373,7 @@ export default function App() {
           <RegisterTable
             risks={displayRisks}
             commentCounts={displayCommentCounts}
+            mitigations={displayMitigations}
             onCellChange={handleCellChange}
             onTriangularChange={handleTriangularChange}
             onClearTriangular={handleClearTriangular}
@@ -332,6 +381,9 @@ export default function App() {
             onDeleteRow={handleDeleteRow}
             onRiskUpdated={handleRiskUpdated}
             onRefreshCommentCounts={refreshCommentCounts}
+            onLinkMitigation={handleLinkMitigationFromRisk}
+            onUnlinkMitigation={handleUnlinkMitigationFromRisk}
+            onNavigateToMitigation={handleNavigateToMitigation}
             readOnly={isViewingSnapshot}
           />
         )}

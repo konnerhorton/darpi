@@ -68,6 +68,7 @@ class RiskOut(BaseModel):
     sort_order: int
     created_at: datetime
     updated_at: datetime
+    linked_mitigation_ids: list[str] = []
 
     model_config = {"from_attributes": True}
 
