@@ -6,7 +6,7 @@ cd "$(dirname "$0")/.."
 export PATH="$HOME/.local/bin:$PATH"
 
 # Rebuild frontend in case of changes
-cd frontend && npm run build && cd ..
+cd frontend && npx vite build && cd ..
 
 # Start server on 0.0.0.0 (required for Codespaces port forwarding)
 cd backend

@@ -11,4 +11,4 @@ export PATH="$HOME/.local/bin:$PATH"
 cd backend && uv sync && cd ..
 
 # Frontend build (CRITICAL — dist/ is gitignored)
-cd frontend && npm install && npm run build && cd ..
+cd frontend && npm install && npx vite build && cd ..
