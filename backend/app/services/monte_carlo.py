@@ -41,7 +41,7 @@ def run_simulation(
     totals.sort()
 
     # Percentiles
-    percentile_keys = [10, 20, 25, 30, 40, 50, 60, 70, 75, 80, 90, 95]
+    percentile_keys = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95]
     percentiles = {f"p{p}": float(np.percentile(totals, p)) for p in percentile_keys}
 
     # Filter out zero-cost iterations for charting (they drown the scale)
@@ -96,9 +96,9 @@ def _empty_result() -> dict:
         "std_dev": 0,
         "min": 0,
         "max": 0,
-        "p10": 0, "p20": 0, "p25": 0, "p30": 0, "p40": 0,
-        "p50": 0, "p60": 0, "p70": 0, "p75": 0, "p80": 0,
-        "p90": 0, "p95": 0,
+        "p5": 0, "p10": 0, "p15": 0, "p20": 0, "p25": 0, "p30": 0, "p35": 0,
+        "p40": 0, "p45": 0, "p50": 0, "p55": 0, "p60": 0, "p65": 0,
+        "p70": 0, "p75": 0, "p80": 0, "p85": 0, "p90": 0, "p95": 0,
         "histogram": {"bin_edges": [], "counts": []},
         "cdf": {"x": [], "y": []},
     }

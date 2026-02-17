@@ -1,10 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import createPlotlyComponent from 'react-plotly.js/factory';
-import Plotly from 'plotly.js-basic-dist-min';
-
-const Plot = createPlotlyComponent(Plotly);
 import * as api from '../api/client';
 import type { MonteCarloResult } from '../types';
+import CostConfidenceChart from './CostConfidenceChart';
+import PdfChart from './PdfChart';
+import CdfChart from './CdfChart';
 
 interface AnalysisViewProps {
   registerId: string;
@@ -13,11 +12,20 @@ interface AnalysisViewProps {
 const formatCurrency = (value: number) =>
   '$' + value.toLocaleString('en-US', { maximumFractionDigits: 0 });
 
+type Tab = 'confidence' | 'pdf' | 'cdf';
+
+const tabs: { key: Tab; label: string }[] = [
+  { key: 'confidence', label: 'Cost Confidence' },
+  { key: 'pdf', label: 'PDF' },
+  { key: 'cdf', label: 'CDF' },
+];
+
 export default function AnalysisView({ registerId }: AnalysisViewProps) {
   const [result, setResult] = useState<MonteCarloResult | null>(null);
   const [iterations, setIterations] = useState(10_000);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>('confidence');
 
   const runAnalysis = useCallback(async (iters: number) => {
     setRunning(true);
@@ -58,14 +66,6 @@ export default function AnalysisView({ registerId }: AnalysisViewProps) {
     );
   }
 
-  // Build PDF histogram data from bin_edges and counts
-  const binCenters = result.histogram.bin_edges.slice(0, -1).map(
-    (edge, i) => (edge + result.histogram.bin_edges[i + 1]) / 2
-  );
-  const binWidths = result.histogram.bin_edges.slice(0, -1).map(
-    (edge, i) => result.histogram.bin_edges[i + 1] - edge
-  );
-
   return (
     <div className="h-full overflow-auto p-4">
       {/* Controls */}
@@ -93,78 +93,30 @@ export default function AnalysisView({ registerId }: AnalysisViewProps) {
         </span>
       </div>
 
-      {/* Charts side by side */}
-      <div className="flex gap-4 flex-wrap">
-        {/* PDF Chart */}
-        <div className="flex-1 min-w-[400px]">
-          <Plot
-            data={[
-              {
-                type: 'bar',
-                x: binCenters,
-                y: result.histogram.counts,
-                width: binWidths,
-                marker: { color: 'rgba(59, 130, 246, 0.6)', line: { color: 'rgba(59, 130, 246, 1)', width: 1 } },
-                name: 'Frequency',
-                hovertemplate: 'Cost: %{x:$,.0f}<br>Count: %{y}<extra></extra>',
-              },
-            ]}
-            layout={{
-              title: { text: result.zero_pct > 0 ? `PDF — Cost Distribution (excl. ${result.zero_pct.toFixed(1)}% at $0)` : 'PDF — Cost Distribution', font: { size: 14 } },
-              xaxis: { title: { text: 'Total Cost ($)' }, tickformat: '$,.0f' },
-              yaxis: { title: { text: 'Frequency' } },
-              shapes: [
-                { type: 'line', x0: result.p50, x1: result.p50, y0: 0, y1: 1, yref: 'paper', line: { color: '#22c55e', width: 2, dash: 'dash' } },
-                { type: 'line', x0: result.p80, x1: result.p80, y0: 0, y1: 1, yref: 'paper', line: { color: '#f59e0b', width: 2, dash: 'dash' } },
-                { type: 'line', x0: result.p90, x1: result.p90, y0: 0, y1: 1, yref: 'paper', line: { color: '#ef4444', width: 2, dash: 'dash' } },
-              ],
-              annotations: [
-                { x: result.p50, y: 1, yref: 'paper', text: 'P50', showarrow: false, font: { color: '#22c55e', size: 11 }, yanchor: 'bottom' },
-                { x: result.p80, y: 1, yref: 'paper', text: 'P80', showarrow: false, font: { color: '#f59e0b', size: 11 }, yanchor: 'bottom' },
-                { x: result.p90, y: 1, yref: 'paper', text: 'P90', showarrow: false, font: { color: '#ef4444', size: 11 }, yanchor: 'bottom' },
-              ],
-              margin: { t: 40, r: 20, b: 50, l: 60 },
-              height: 350,
-              showlegend: false,
-            }}
-            config={{ responsive: true, displayModeBar: false }}
-            style={{ width: '100%' }}
-          />
-        </div>
+      {/* Tab bar */}
+      <div className="border-b border-gray-200 mb-4">
+        <nav className="flex gap-0 -mb-px">
+          {tabs.map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === tab.key
+                  ? 'border-blue-600 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
+      </div>
 
-        {/* CDF Chart */}
-        <div className="flex-1 min-w-[400px]">
-          <Plot
-            data={[
-              {
-                type: 'scatter',
-                mode: 'lines',
-                x: result.cdf.x,
-                y: result.cdf.y,
-                line: { color: 'rgba(59, 130, 246, 1)', width: 2 },
-                fill: 'tozeroy',
-                fillcolor: 'rgba(59, 130, 246, 0.1)',
-                name: 'CDF',
-                hovertemplate: '%{y:.1f}% chance total cost < %{x:$,.0f}<extra></extra>',
-              },
-            ]}
-            layout={{
-              title: { text: 'CDF — Cumulative Probability', font: { size: 14 } },
-              xaxis: { title: { text: 'Total Cost ($)' }, tickformat: '$,.0f' },
-              yaxis: { title: { text: 'Cumulative Probability (%)' }, range: [0, 100] },
-              shapes: [
-                { type: 'line', x0: result.min, x1: result.max, y0: 50, y1: 50, line: { color: '#22c55e', width: 1, dash: 'dot' } },
-                { type: 'line', x0: result.min, x1: result.max, y0: 80, y1: 80, line: { color: '#f59e0b', width: 1, dash: 'dot' } },
-                { type: 'line', x0: result.min, x1: result.max, y0: 90, y1: 90, line: { color: '#ef4444', width: 1, dash: 'dot' } },
-              ],
-              margin: { t: 40, r: 20, b: 50, l: 60 },
-              height: 350,
-              showlegend: false,
-            }}
-            config={{ responsive: true, displayModeBar: false }}
-            style={{ width: '100%' }}
-          />
-        </div>
+      {/* Chart */}
+      <div>
+        {activeTab === 'confidence' && <CostConfidenceChart result={result} />}
+        {activeTab === 'pdf' && <PdfChart result={result} />}
+        {activeTab === 'cdf' && <CdfChart result={result} />}
       </div>
 
       {/* Summary stats */}
