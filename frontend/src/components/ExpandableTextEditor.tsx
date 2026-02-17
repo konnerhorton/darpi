@@ -1,16 +1,11 @@
-import { forwardRef, useImperativeHandle, useRef, useEffect, useState } from 'react';
-import type { ICellEditorParams } from 'ag-grid-community';
+import { useRef, useEffect, useState } from 'react';
+import type { CustomCellEditorProps } from 'ag-grid-react';
 
-const ExpandableTextEditor = forwardRef((props: ICellEditorParams, ref) => {
+const ExpandableTextEditor = (props: CustomCellEditorProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [value, setValue] = useState<string>(props.value ?? '');
 
-  useImperativeHandle(ref, () => ({
-    getValue: () => value,
-  }));
-
   useEffect(() => {
-    // Auto-focus and select text on mount
     const ta = textareaRef.current;
     if (ta) {
       ta.focus();
@@ -25,7 +20,9 @@ const ExpandableTextEditor = forwardRef((props: ICellEditorParams, ref) => {
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setValue(e.target.value);
+    const newValue = e.target.value;
+    setValue(newValue);
+    props.onValueChange(newValue);
     autoResize(e.target);
   };
 
@@ -56,7 +53,6 @@ const ExpandableTextEditor = forwardRef((props: ICellEditorParams, ref) => {
       />
     </div>
   );
-});
+};
 
-ExpandableTextEditor.displayName = 'ExpandableTextEditor';
 export default ExpandableTextEditor;
