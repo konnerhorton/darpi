@@ -1,3 +1,9 @@
+<!-- This was the initial prompt used to start the prototyping process.
+I asked Claude Code to read this .md file and start interviewing me about the details.
+The `PRODUCT_VISION.md` and `PROTOTYPE_SPEC.md` files were the result after several
+iterations on those interviews.
+ -->
+
 I have an idea that I would like to build a prototype for. Can you help me? First I would like to think through a abbreviated product spec, then use that to start building.
 
 On large construction projects a Risk Register is sometimes developed among all the stakeholders to broadly do two things:

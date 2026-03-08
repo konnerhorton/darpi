@@ -1,5 +1,7 @@
 # DARPI
 
+<!-- Context file for Claude Code -->
+
 Collaborative risk register platform for large construction/infrastructure projects. Replaces spreadsheet-based workflows with an Airtable-like interface for identifying, scoring, and mitigating project risks.
 
 ## Project Status
